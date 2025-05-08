@@ -1,0 +1,4 @@
+output
+src/vendor/intel
+src/init
+*.efi
