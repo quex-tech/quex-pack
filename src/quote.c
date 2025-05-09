@@ -11,6 +11,8 @@
 #include <string.h>
 
 bool is_quote_well_formed(sgx_quote3_t *quote) {
+	trace("Checking if quote is well-formed...\n");
+
 	if (quote->header.version != 3) {
 		trace("Unsupported quote version %d\n", quote->header.version);
 		return false;
@@ -39,10 +41,12 @@ bool is_quote_well_formed(sgx_quote3_t *quote) {
 		return false;
 	}
 
+	trace("Quote is well-formed\n");
 	return true;
 }
 
 static int parse_pck_crt(mbedtls_x509_crt *pck_crt, sgx_ql_ecdsa_sig_data_t *signature_data) {
+	trace("Parsing PCK certificate...\n");
 	sgx_ql_auth_data_t *auth_data =
 	    (sgx_ql_auth_data_t *)signature_data->auth_certification_data;
 	sgx_ql_certification_data_t *crt_data =
@@ -54,47 +58,62 @@ static int parse_pck_crt(mbedtls_x509_crt *pck_crt, sgx_ql_ecdsa_sig_data_t *sig
 	return mbedtls_x509_crt_parse(pck_crt, crt_data->certification_data, crt_data->size);
 }
 
-static int verify_qe_report_sig(sgx_ql_ecdsa_sig_data_t *signature_data,
-                                mbedtls_x509_crt *root_crt) {
+static int verify_sig(mbedtls_pk_context *pk, uint8_t sig[64], uint8_t *msg, size_t msg_len) {
+	trace("Verifying a signature...\n");
 	int ret = -1;
-	mbedtls_x509_crt pck_crt;
 	uint8_t sig_der[MBEDTLS_ECDSA_MAX_LEN];
 	size_t sig_der_len = MBEDTLS_ECDSA_MAX_LEN;
 	unsigned char hash[32];
+
+	if ((ret = rs_to_der(sig, sig_der, sig_der_len, &sig_der_len)) != 0) {
+		trace("rs_to_der failed: %d\n", ret);
+		return ret;
+	}
+
+	if ((ret = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
+	                      (const unsigned char *)msg, msg_len, hash)) != 0) {
+		trace("mbedtls_md failed: %d\n", ret);
+		return ret;
+	}
+
+	if ((ret = mbedtls_pk_verify(pk, MBEDTLS_MD_SHA256, hash, sizeof(hash), sig_der,
+	                             sig_der_len)) != 0) {
+		trace("Invalid signature: %d\n", ret);
+		return ret;
+	}
+
+	trace("The signature is valid\n");
+	return 0;
+}
+
+static int verify_qe_report_sig(sgx_ql_ecdsa_sig_data_t *signature_data,
+                                mbedtls_x509_crt *root_crt) {
+	trace("Verifying QE report signature...\n");
+	int ret = -1;
+	mbedtls_x509_crt pck_crt;
 	uint32_t flags = 0;
 
 	mbedtls_x509_crt_init(&pck_crt);
 
 	if ((ret = parse_pck_crt(&pck_crt, signature_data)) != 0) {
-		trace("parse_pck_crt failed\n");
+		trace("parse_pck_crt failed: %d\n", ret);
 		goto cleanup;
 	}
 
 	if ((ret = mbedtls_x509_crt_verify(&pck_crt, root_crt, NULL, NULL, &flags, NULL, NULL)) !=
 	    0) {
-		trace("Invalid PCK certificate\n");
+		trace("Invalid PCK certificate: %d\n", ret);
 		goto cleanup;
 	}
 
-	if ((ret = rs_to_der(signature_data->qe_report_sig, sig_der, sig_der_len, &sig_der_len)) !=
-	    0) {
-		trace("rs_to_der failed\n");
-		return ret;
+	if ((ret = verify_sig(&pck_crt.pk, signature_data->qe_report_sig,
+	                      (uint8_t *)&(signature_data->qe_report),
+	                      sizeof(sgx_report_body_t))) != 0) {
+		trace("Invalid QE report signature: %d\n", ret);
+		goto cleanup;
 	}
 
-	if ((ret = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
-	                      (const unsigned char *)&(signature_data->qe_report),
-	                      sizeof(sgx_report_body_t), hash)) != 0) {
-		trace("mbedtls_md failed\n");
-		return ret;
-	}
-
-	if ((ret = mbedtls_pk_verify(&pck_crt.pk, MBEDTLS_MD_SHA256, hash, sizeof(hash), sig_der,
-	                             sig_der_len)) != 0) {
-		trace("Invalid signature\n");
-		return ret;
-	}
-
+	trace("QE report signature is valid\n");
 	ret = 0;
 cleanup:
 	mbedtls_x509_crt_free(&pck_crt);
@@ -102,6 +121,7 @@ cleanup:
 }
 
 static int verify_attest_key_hash(sgx_ql_ecdsa_sig_data_t *signature_data) {
+	trace("Verifying attestation key hash...\n");
 	int ret = -1;
 	sgx_ql_auth_data_t *auth_data =
 	    (sgx_ql_auth_data_t *)signature_data->auth_certification_data;
@@ -123,7 +143,7 @@ static int verify_attest_key_hash(sgx_ql_ecdsa_sig_data_t *signature_data) {
 	                      (const unsigned char *)hash_preimage,
 	                      sizeof(signature_data->attest_pub_key) + auth_data->size,
 	                      expected_report_data)) != 0) {
-		trace("mbedtls_md failed\n");
+		trace("mbedtls_md failed: %d\n", ret);
 		goto cleanup;
 	}
 
@@ -133,6 +153,7 @@ static int verify_attest_key_hash(sgx_ql_ecdsa_sig_data_t *signature_data) {
 		goto cleanup;
 	}
 
+	trace("Attestation key hash is valid\n");
 	ret = 0;
 cleanup:
 	if (hash_preimage) {
@@ -142,75 +163,62 @@ cleanup:
 }
 
 static int verify_quote_sig(sgx_quote3_t *quote) {
+	trace("Verifying quote signature...\n");
 	int ret = -1;
+
+	uint8_t pk_der[128] = {0};
+	size_t pk_der_len = sizeof(pk_der);
+	mbedtls_pk_context pk;
 	sgx_ql_ecdsa_sig_data_t *signature_data =
 	    (sgx_ql_ecdsa_sig_data_t *)&(quote->signature_data);
-	unsigned char hash[32];
-	mbedtls_ecp_group grp;
-	mbedtls_ecp_point attest_pk;
-	mbedtls_mpi r;
-	mbedtls_mpi s;
 
-	mbedtls_ecp_group_init(&grp);
-	mbedtls_ecp_point_init(&attest_pk);
-	mbedtls_mpi_init(&r);
-	mbedtls_mpi_init(&s);
+	mbedtls_pk_init(&pk);
 
-	if ((ret = mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1)) != 0) {
-		trace("mbedtls_ecp_group_load failed\n");
+	if ((ret =
+	         pk_to_der(signature_data->attest_pub_key, pk_der, sizeof(pk_der), &pk_der_len))) {
+		trace("pk_to_der failed: %d\n", ret);
 		goto cleanup;
 	}
 
-	if ((ret = read_raw_pk(&grp, signature_data->attest_pub_key, &attest_pk)) != 0) {
-		trace("mbedtls_ecp_point_binary(attest_pk) failed\n");
+	if ((ret = mbedtls_pk_parse_public_key(&pk, pk_der, pk_der_len))) {
+		trace("mbedtls_pk_parse_public_key failed: %d\n", ret);
 		goto cleanup;
 	}
 
-	if ((ret = read_raw_sig(signature_data->sig, &r, &s)) != 0) {
-		trace("read_raw_sig failed\n");
+	if ((ret = verify_sig(&pk, signature_data->sig, (uint8_t *)quote,
+	                      sizeof(sgx_quote_header_t) + sizeof(sgx_report_body_t))) != 0) {
+		trace("Invalid quote signature: %d\n", ret);
 		goto cleanup;
 	}
 
-	if ((ret = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
-	                      (const unsigned char *)quote,
-	                      sizeof(sgx_quote_header_t) + sizeof(sgx_report_body_t), hash)) != 0) {
-		trace("mbedtls_md failed\n");
-		return ret;
-	}
-
-	if ((ret = mbedtls_ecdsa_verify(&grp, hash, sizeof(hash), &attest_pk, &r, &s)) != 0) {
-		trace("Invalid signature\n");
-		goto cleanup;
-	}
-
+	trace("Quote signature is valid\n");
 	ret = 0;
 cleanup:
-	mbedtls_mpi_free(&s);
-	mbedtls_mpi_free(&r);
-	mbedtls_ecp_point_free(&attest_pk);
-	mbedtls_ecp_group_free(&grp);
+	mbedtls_pk_free(&pk);
 	return ret;
 }
 
 int verify_quote(sgx_quote3_t *quote, mbedtls_x509_crt *root_crt) {
+	trace("Verifying quote...\n");
 	int ret = -1;
 	sgx_ql_ecdsa_sig_data_t *signature_data =
 	    (sgx_ql_ecdsa_sig_data_t *)&(quote->signature_data);
 
 	if ((ret = verify_qe_report_sig(signature_data, root_crt)) != 0) {
-		trace("Invalid QE report\n");
+		trace("Invalid QE report: %d\n", ret);
 		return ret;
 	}
 
 	if ((ret = verify_attest_key_hash(signature_data)) != 0) {
-		trace("verify_attest_key_hash failed\n");
+		trace("verify_attest_key_hash failed: %d\n", ret);
 		return ret;
 	}
 
 	if ((ret = verify_quote_sig(quote)) != 0) {
-		trace("verify_quote_sig failed\n");
+		trace("verify_quote_sig failed: %d\n", ret);
 		return ret;
 	}
 
+	trace("Quote is valid\n");
 	return 0;
 }

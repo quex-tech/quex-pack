@@ -56,4 +56,37 @@ cleanup:
 	return ret;
 }
 
+int pk_to_der(const uint8_t pk[64], uint8_t *der, size_t der_size, size_t *olen) {
+	int ret = -1;
+	uint8_t *p = der + der_size;
+	size_t len = 0;
+	size_t len_alg = 0;
+	uint8_t point[65] = {0x04};
+	memcpy(point + 1, pk, 64);
+
+	MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_bitstring(&p, der, point, 65 * 8));
+
+	MBEDTLS_ASN1_CHK_ADD(
+	    len_alg, mbedtls_asn1_write_oid(&p, der, MBEDTLS_OID_EC_GRP_SECP256R1,
+	                                    MBEDTLS_OID_SIZE(MBEDTLS_OID_EC_GRP_SECP256R1)));
+	MBEDTLS_ASN1_CHK_ADD(
+	    len_alg, mbedtls_asn1_write_oid(&p, der, MBEDTLS_OID_EC_ALG_UNRESTRICTED,
+	                                    MBEDTLS_OID_SIZE(MBEDTLS_OID_EC_ALG_UNRESTRICTED)));
+	MBEDTLS_ASN1_CHK_ADD(len_alg, mbedtls_asn1_write_len(&p, der, len_alg));
+	MBEDTLS_ASN1_CHK_ADD(
+	    len_alg,
+	    mbedtls_asn1_write_tag(&p, der, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
+
+	len += len_alg;
+
+	MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&p, der, len));
+	MBEDTLS_ASN1_CHK_ADD(
+	    len, mbedtls_asn1_write_tag(&p, der, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
+
+	*olen = len;
+	memmove(der, p, len);
+
+	return 0;
+}
+
 #pragma GCC diagnostic pop
