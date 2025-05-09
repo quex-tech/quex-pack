@@ -1,3 +1,5 @@
+#include "ec.h"
+#include "quote.h"
 #include "types.h"
 #include "utils.h"
 #include <arpa/inet.h>
@@ -8,6 +10,7 @@
 #include <mbedtls/gcm.h>
 #include <mbedtls/hkdf.h>
 #include <mbedtls/md.h>
+#include <mbedtls/x509_crt.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +21,8 @@
 #define PORT 24516
 #define MASK_PATH "/etc/key_request_mask.bin"
 #define VAULT_MRENCLAVE_PATH "/etc/vault_mrenclave.bin"
+#define ROOT_PEM_PATH "/etc/root.pem"
+#define ROOT_PEM_SIZE 964
 
 typedef struct _ecc_context {
 	mbedtls_ecp_group grp;
@@ -66,20 +71,16 @@ static int gen_td_report(ecc_context *ctx, mbedtls_mpi *ephemeral_sk, sgx_report
 	tdx_report_data_t report_data = {0};
 	tdx_report_t tdx_report = {{0}};
 
-	uint8_t ecp_point_binary[65];
-	size_t olen;
-	if ((ret = mbedtls_ecp_point_write_binary(
-	         &(ctx->grp), &ephemeral_pk, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, ecp_point_binary,
-	         sizeof(ecp_point_binary))) != 0) {
+	if ((ret = write_raw_pk(&(ctx->grp), &ephemeral_pk, report_data.d)) != 0) {
 		trace("mbedtls_ecp_point_write_binary failed\n");
 		goto cleanup;
 	}
 
-	memcpy(report_data.d, ecp_point_binary + 1, 64);
 	if (tdx_att_get_report(&report_data, &tdx_report) != TDX_ATTEST_SUCCESS) {
 		trace("tdx_att_get_report failed\n");
 		goto cleanup;
 	}
+
 	memcpy(report, tdx_report.d, TDX_REPORT_SIZE);
 	ret = 0;
 cleanup:
@@ -90,7 +91,6 @@ cleanup:
 static int decrypt_sk(ecc_context *ctx, mbedtls_mpi *ephemeral_sk, uint8_t ciphertext[QUEX_CT_LEN],
                       uint8_t sk[32]) {
 	int ret = -1;
-	uint8_t ephemeral_pk_bytes[65] = {0x04};
 	uint8_t ikm[130];
 	uint8_t symmetric_key[32];
 	const unsigned char salt[] = "quex_salt";
@@ -102,10 +102,7 @@ static int decrypt_sk(ecc_context *ctx, mbedtls_mpi *ephemeral_sk, uint8_t ciphe
 	mbedtls_ecp_point_init(&dh);
 	mbedtls_gcm_init(&gcm);
 
-	memcpy(ephemeral_pk_bytes + 1, ciphertext, 64);
-
-	if ((ret = mbedtls_ecp_point_read_binary(&(ctx->grp), &ephemeral_pk, ephemeral_pk_bytes,
-	                                         sizeof(ephemeral_pk_bytes))) != 0) {
+	if ((ret = read_raw_pk(&(ctx->grp), ciphertext, &ephemeral_pk)) != 0) {
 		goto cleanup;
 	}
 
@@ -153,38 +150,6 @@ cleanup:
 	return ret;
 }
 
-static bool is_sgx_quote_well_formed(sgx_quote3_t *quote) {
-	if (quote->header.version != 3) {
-		trace("Unsupported quote version %d\n", quote->header.version);
-		return false;
-	}
-
-	if (quote->header.att_key_type != 2) {
-		trace("Unsupported quote attestation key type %d\n", quote->header.att_key_type);
-		return false;
-	}
-
-	if (quote->header.att_key_data_0 != 0) {
-		trace("Unsupported quote attestation key data %x\n", quote->header.att_key_type);
-		return false;
-	}
-
-	if (memcmp(quote->header.vendor_id,
-	           (const uint8_t[]){0x93, 0x9A, 0x72, 0x33, 0xF7, 0x9C, 0x4C, 0xA9, 0x94, 0x0A,
-	                             0x0D, 0xB3, 0x95, 0x7F, 0x06, 0x07},
-	           16) != 0) {
-		trace("Unsupported quote vendor\n");
-		return false;
-	}
-
-	if (quote->signature_data_len > 16384) {
-		trace("Quote signature data length %d is too big\n", quote->signature_data_len);
-		return false;
-	}
-
-	return true;
-}
-
 static quoted_td_key_response_t *recv_response(int client) {
 	quoted_td_key_response_t response_part;
 	if (recv(client, &response_part, sizeof(quoted_td_key_response_t), MSG_WAITALL) !=
@@ -193,7 +158,7 @@ static quoted_td_key_response_t *recv_response(int client) {
 		return NULL;
 	}
 
-	if (!is_sgx_quote_well_formed(&response_part.quote)) {
+	if (!is_quote_well_formed(&response_part.quote)) {
 		trace("Quote is ill-formed\n");
 		return NULL;
 	}
@@ -355,6 +320,14 @@ static int get_sk(uint8_t sk[32]) {
 		goto cleanup;
 	}
 
+	mbedtls_x509_crt root_crt;
+	mbedtls_x509_crt_init(&root_crt);
+	int cret = 0;
+	if ((cret = mbedtls_x509_crt_parse_file(&root_crt, ROOT_PEM_PATH)) != 0) {
+		trace("Could not load root certificate %s: %d\n", ROOT_PEM_PATH, cret);
+		goto cleanup;
+	}
+
 	sock = init_socket(PORT);
 	if (sock < 0) {
 		trace("init_socket(%d) failed\n", PORT);
@@ -371,8 +344,9 @@ static int get_sk(uint8_t sk[32]) {
 		}
 
 		mbedtls_mpi ephemeral_sk;
-		mbedtls_mpi_init(&ephemeral_sk);
 		quoted_td_key_response_t *response = NULL;
+
+		mbedtls_mpi_init(&ephemeral_sk);
 
 		if (gen_td_report(&ctx, &ephemeral_sk, &key_request.tdreport) != 0) {
 			trace("gen_td_report failed\n");
@@ -406,14 +380,32 @@ static int get_sk(uint8_t sk[32]) {
 			goto cleanup_iteration;
 		}
 
-		// todo verify SGX quote and report data
+		if (verify_quote(&(response->quote), &root_crt) != 0) {
+			trace("Invalid quote\n");
+			goto cleanup_iteration;
+		}
+
+		unsigned char msg_hash[32];
+		if ((ret = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
+		                      (const unsigned char *)&(response->msg),
+		                      sizeof(response->msg), msg_hash)) != 0) {
+			trace("mbedtls_md failed\n");
+			goto cleanup_iteration;
+		}
+
+		if ((ret = memcmp(&(response->quote.report_body.report_data), msg_hash,
+		                  sizeof(msg_hash))) != 0) {
+			trace("Quote report data does not contain message hash\n");
+			goto cleanup_iteration;
+		}
 
 		if (decrypt_sk(&ctx, &ephemeral_sk, response->msg.ciphertext, sk) != 0) {
 			trace("decrypt_sk failed\n");
 			goto cleanup_iteration;
 		}
+
 		got_sk = true;
-		trace("Successfully got the private key\n");
+		trace("Successfully got the secret key\n");
 
 	cleanup_iteration:
 		mbedtls_mpi_free(&ephemeral_sk);
@@ -428,6 +420,7 @@ cleanup:
 	if (sock >= 0) {
 		close(sock);
 	}
+	mbedtls_x509_crt_free(&root_crt);
 	free_ecc_context(&ctx);
 	return ret;
 }
@@ -440,7 +433,7 @@ int main(void) {
 
 	uint8_t sk[32];
 	if (get_sk(sk) != 0) {
-		exit(EXIT_FAILURE);
+		// exit(EXIT_FAILURE);
 	}
 
 	while (1) {
