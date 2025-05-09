@@ -1,3 +1,6 @@
+#ifndef _TYPES_H_
+#define _TYPES_H_
+
 #include <sgx_quote_3.h>
 #include <sgx_report2.h>
 
@@ -30,3 +33,5 @@ typedef struct _quoted_td_key_response_t {
 } quoted_td_key_response_t;
 
 #pragma pack(pop)
+
+#endif

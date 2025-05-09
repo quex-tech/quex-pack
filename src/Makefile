@@ -36,8 +36,8 @@ $(INTEL_INCLUDE_DIR) $(INTEL_LIB_DIR): $(INTEL_DEB_PATHS)
 		dpkg-deb -x $$deb $(INTEL_DIR); \
 	done
 
-init: init.c quote.c der.c ec.c utils.c utils.h types.h $(MBEDTLS_LIBS) $(INTEL_INCLUDE_DIR) $(INTEL_LIB_DIR)
-	@$(CC) $(LOCAL_CFLAGS) $(CFLAGS) init.c quote.c der.c ec.c utils.c $(MBEDTLS_LIBS) -o $@ $(MBEDTLS_INC) $(INTEL_TDX_ATTEST) -I$(INTEL_INCLUDE_DIR) -I$(INTEL_SGX_SDK_INCLUDE_DIR)
+init: init.c key.c report.c quote.c der.c ec.c utils.c utils.h types.h $(MBEDTLS_LIBS) $(INTEL_INCLUDE_DIR) $(INTEL_LIB_DIR)
+	@$(CC) $(LOCAL_CFLAGS) $(CFLAGS) init.c key.c report.c quote.c der.c ec.c utils.c $(MBEDTLS_LIBS) -o $@ $(MBEDTLS_INC) $(INTEL_TDX_ATTEST) -I$(INTEL_INCLUDE_DIR) -I$(INTEL_SGX_SDK_INCLUDE_DIR)
 
 $(MBEDTLS_LIBS): vendor/mbedtls_config/config.h
 	$(MAKE) -C $(MBEDTLS_DIR) lib CFLAGS="$(MBEDTLS_CFLAGS)"
