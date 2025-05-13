@@ -2,3 +2,4 @@ output
 src/vendor/intel
 src/init
 *.efi
+rootfs/opt/bundle

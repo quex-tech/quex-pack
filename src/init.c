@@ -1,16 +1,41 @@
 #include "key.h"
+#include "utils.h"
+#include <string.h>
 #include <sys/mount.h>
+#include <sys/wait.h>
 #include <unistd.h>
+
+#define SECRET_KEY_TEMPLATE                                                                        \
+	"TD_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 int main(void) {
 	mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
 	mount("none", "/proc", "proc", 0, NULL);
 	mount("none", "/sys", "sysfs", 0, NULL);
 	mount("none", "/sys/kernel/config", "configfs", 0, NULL);
+	mount("none", "/sys/fs/cgroup", "cgroup2", 0, NULL);
 
-	uint8_t sk[32];
+	uint8_t sk[32] = {0};
 	if (get_sk(sk) != 0) {
-		// exit(EXIT_FAILURE);
+		return -1;
+	}
+
+	char key_env_var[] = SECRET_KEY_TEMPLATE;
+	write_hex(sk, sizeof(sk), key_env_var + strlen("TD_SECRET_KEY="));
+	replace_in_file("/opt/bundle/config.json", SECRET_KEY_TEMPLATE, key_env_var);
+
+	pid_t pid = vfork();
+
+	if (pid == 0) {
+		char *exec_argv[] = {"crun",        "run", "--no-pivot", "--bundle",
+		                     "/opt/bundle", "app", NULL};
+		char *exec_envp[] = {NULL};
+		execve("/usr/bin/crun", exec_argv, exec_envp);
+	} else if (pid > 0) {
+		int status;
+		waitpid(pid, &status, 0);
+	} else {
+		perror("vfork failed");
 	}
 
 	while (1) {
