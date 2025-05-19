@@ -1,5 +1,4 @@
-output
-src/vendor/intel
-src/init
+src/init/vendor
+src/init/init
 *.efi
-rootfs/opt/bundle
+*.cpio.gz

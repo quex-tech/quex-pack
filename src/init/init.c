@@ -9,11 +9,27 @@
 	"TD_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 int main(void) {
-	mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
-	mount("none", "/proc", "proc", 0, NULL);
-	mount("none", "/sys", "sysfs", 0, NULL);
-	mount("none", "/sys/kernel/config", "configfs", 0, NULL);
-	mount("none", "/sys/fs/cgroup", "cgroup2", 0, NULL);
+	int ret;
+	if ((ret = mount("devtmpfs", "/dev", "devtmpfs", 0, NULL)) != 0) {
+		perror("mount /dev");
+		return -1;
+	}
+	if ((ret = mount("none", "/proc", "proc", 0, NULL)) != 0) {
+		perror("mount /proc");
+		return -1;
+	}
+	if ((ret = mount("none", "/sys", "sysfs", 0, NULL)) != 0) {
+		perror("mount /sys");
+		return -1;
+	}
+	if ((ret = mount("none", "/sys/kernel/config", "configfs", 0, NULL)) != 0) {
+		perror("mount /sys/kernel/config");
+		return -1;
+	}
+	if ((ret = mount("none", "/sys/fs/cgroup", "cgroup2", 0, NULL)) != 0) {
+		perror("mount /sys/fs/cgroup");
+		return -1;
+	}
 
 	uint8_t sk[32] = {0};
 	if (get_sk(sk) != 0) {
@@ -27,8 +43,8 @@ int main(void) {
 	pid_t pid = vfork();
 
 	if (pid == 0) {
-		char *exec_argv[] = {"crun",        "run", "--no-pivot", "--bundle",
-		                     "/opt/bundle", "app", NULL};
+		char *exec_argv[] = {"crun",     "--debug",     "run", "--no-pivot",
+		                     "--bundle", "/opt/bundle", "app", NULL};
 		char *exec_envp[] = {NULL};
 		execve("/usr/bin/crun", exec_argv, exec_envp);
 	} else if (pid > 0) {
