@@ -27,3 +27,4 @@ docker run --rm \
   "$IMAGE_REF"
 
 mv "${tmp_out}/rootfs.cpio.gz" "$INITRD_OUT"
+mv "${tmp_out}/bzImage" "$PWD"

@@ -1,5 +1,6 @@
 FROM ubuntu:noble-20240407.1
 
+ARG LINUX_VERSION=6.12.29
 ARG CRUN_VERSION=1.21
 ARG ROOTFS_DIR=/var/rootfs
 
@@ -17,16 +18,30 @@ set -euo pipefail
 repro-sources-list.sh
 apt-get update
 apt-get install -y --no-install-recommends \
-    curl \
-    skopeo \
-    umoci \
-    jq \
-    cpio gzip \
-    ca-certificates \
-    make git gcc build-essential pkgconf libtool \
-    libsystemd-dev libprotobuf-c-dev libcap-dev libseccomp-dev libyajl-dev \
-    go-md2man autoconf python3 automake
+  autoconf automake bc bison build-essential ca-certificates cpio curl fakeroot flex gcc git go-md2man gzip jq libcap-dev libelf-dev libncurses-dev libprotobuf-c-dev libseccomp-dev libssl-dev libsystemd-dev libtool libyajl-dev make pkgconf python3 skopeo umoci
 rm -rf /var/log/* /var/cache/ldconfig/aux-cache
+EOF
+
+COPY src/linux /tmp/linux-config
+
+#Build Linux
+RUN <<EOF
+#!/bin/bash
+set -euo pipefail
+export SOURCE_DATE_EPOCH=$(cat $WRITE_SOURCE_DATE_EPOCH)
+export KBUILD_BUILD_VERSION=1
+export KBUILD_BUILD_USER=quex
+export KBUILD_BUILD_HOST=quex
+export KBUILD_BUILD_TIMESTAMP="$(LC_ALL=C TZ=\"UTC\" date -d @$SOURCE_DATE_EPOCH)"
+mkdir -p /tmp/linux /var/linux
+curl -L https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${LINUX_VERSION}.tar.xz -o /tmp/linux/linux.tar.xz
+cd /tmp/linux
+tar -x -f linux.tar.xz
+cd linux-${LINUX_VERSION}
+cp /tmp/linux-config/kernel.config .config
+make -j$(nproc)
+cp arch/x86/boot/bzImage /var/linux/
+rm -rf /tmp/linux
 EOF
 
 # Build crun
@@ -52,7 +67,7 @@ cd crun-${CRUN_VERSION}
   --disable-seccomp \
   --disable-systemd \
   --disable-criu
-make
+make -j$(nproc)
 make install
 rm -rf ${ROOTFS_DIR}/usr/share
 rm -rf /tmp/crun

@@ -43,8 +43,8 @@ int main(void) {
 	pid_t pid = vfork();
 
 	if (pid == 0) {
-		char *exec_argv[] = {"crun",     "--debug",     "run", "--no-pivot",
-		                     "--bundle", "/opt/bundle", "app", NULL};
+		char *exec_argv[] = {"crun",        "run", "--no-pivot", "--bundle",
+		                     "/opt/bundle", "app", NULL};
 		char *exec_envp[] = {NULL};
 		execve("/usr/bin/crun", exec_argv, exec_envp);
 	} else if (pid > 0) {

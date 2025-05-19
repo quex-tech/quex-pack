@@ -19,12 +19,15 @@ skopeo copy "$IMAGE_SRC" "oci:$oci_layout:latest"
 umoci unpack --image "$oci_layout:latest" "$bundle"
 
 jq '
-    .mounts                           = (.mounts                           // [])
+    .process                          = (.process                          // {})
+  | .mounts                           = (.mounts                           // [])
   | .linux                            = (.linux                            // {})
   | .linux.devices                    = (.linux.devices                    // [])
   | .linux.namespaces                 = (.linux.namespaces                 // [])
   | .linux.resources                  = (.linux.resources                  // {})
   | .linux.resources.devices          = (.linux.resources.devices          // [])
+  | .process.terminal = false
+  | .mounts |= map(select(.type != "devpts"))
   | .linux.namespaces |= map(select(.type != "network"))
   | .mounts += [{
       "destination": "/sys/kernel/config",
@@ -59,3 +62,5 @@ find "$rootfs" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
   | LC_ALL=C sort \
   | cpio --reproducible -o -V -H newc ) \
   | gzip -9 -c -n >"/mnt/out/rootfs.cpio.gz"
+
+cp /var/linux/bzImage /mnt/out/
