@@ -12,7 +12,6 @@ work=/tmp/work
 oci_layout=$work/oci
 rootfs=/var/rootfs
 bundle=$rootfs/opt/bundle
-SOURCE_DATE_EPOCH=$(cat /tmp/source_date_epoch)
 
 mkdir -p "$work" "$bundle"
 skopeo copy "$IMAGE_SRC" "oci:$oci_layout:latest"
@@ -55,14 +54,22 @@ jq '
 mv "$bundle/config.json.new" "$bundle/config.json"
 rm "$bundle/umoci.json" "$bundle/"*.mtree
 
+if [[ $QUEX_KEY_REQUEST_MASK ]]; then
+  echo $QUEX_KEY_REQUEST_MASK | xxd -r -p >"$rootfs/etc/key_request_mask.bin"
+fi
+
+if [[ $QUEX_VAULT_MRENCLAVE ]]; then
+  echo $QUEX_VAULT_MRENCLAVE | xxd -r -p >"$rootfs/etc/vault_mrenclave.bin"
+fi
+
 find "$rootfs" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 
 echo "Packing rootfs.cpio.gz"
-( cd "$rootfs" && \
-  LC_ALL=C find . \
-  | LC_ALL=C sort \
-  | cpio --reproducible -o -H newc ) \
-  | gzip -9 -c -n >"/mnt/out/rootfs.cpio.gz"
+(cd "$rootfs" &&
+  LC_ALL=C find . |
+  LC_ALL=C sort |
+    cpio --reproducible -o -H newc) |
+  gzip -9 -c -n >"/mnt/out/rootfs.cpio.gz"
 
 ukify build \
   --linux=/var/linux/bzImage \

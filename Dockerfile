@@ -1,14 +1,9 @@
 # ubuntu:noble-20250415.1
 FROM ubuntu@sha256:dc17125eaac86538c57da886e494a34489122fb6a3ebb6411153d742594c2ddc
 
-ARG LINUX_VERSION=6.12.29
-ARG LINUX_TAR_XZ_SHA256=e8b2ec7e2338ccb9c86de7154f6edcaadfce80907493c143e85a82776bb5064d
-ARG LINUX_BZIMAGE_SHA256=64701334aaa392c31842d7533a9ae57453d22ae0c2b198bf9c4c03f6f8c2e44f
-
 ARG ROOTFS_DIR=/var/rootfs
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV WRITE_SOURCE_DATE_EPOCH=/tmp/source_date_epoch
 
 # Install Ubuntu packages
 RUN \
@@ -19,9 +14,39 @@ RUN \
 #!/bin/bash
 set -euo pipefail
 repro-sources-list.sh
-apt-get update
-apt-get install -y --no-install-recommends \
-  autoconf automake bc bison build-essential ca-certificates cpio curl fakeroot flex gcc git go-md2man gzip jq libcap-dev libelf-dev libncurses-dev libprotobuf-c-dev libseccomp-dev libssl-dev libsystemd-dev libtool libyajl-dev make pkgconf python3 skopeo systemd-boot-efi systemd-ukify umoci
+apt install -y --no-install-recommends --update \
+  autoconf \
+  automake \
+  bc \
+  bison \
+  build-essential \
+  ca-certificates \
+  cpio \
+  curl \
+  fakeroot \
+  flex \
+  gcc \
+  git \
+  go-md2man \
+  gzip \
+  jq \
+  libcap-dev \
+  libelf-dev \
+  libncurses-dev \
+  libprotobuf-c-dev \
+  libseccomp-dev \
+  libssl-dev \
+  libsystemd-dev \
+  libtool \
+  libyajl-dev \
+  make \
+  pkgconf \
+  python3 \
+  skopeo \
+  systemd-boot-efi=255.4-1ubuntu8.6 \
+  systemd-ukify \
+  umoci \
+  xxd
 rm -rf /var/log/* /var/cache/ldconfig/aux-cache
 cd /usr/lib
 sha256sum x86_64-linux-gnu/ld-linux-x86-64.so.2 \
@@ -32,13 +57,18 @@ e7a914a33fd4f6d25057b8d48c7c5f3d55ab870ec4ee27693d6c5f3a532e6226  x86_64-linux-g
 078e09f18b7754a7a542814c0a30ce059743d6ff334a282a288b7cf23b11662f  systemd/boot/efi/linuxx64.efi.stub"
 EOF
 
+ENV SOURCE_DATE_EPOCH=1747699200
+
 COPY src/linux /tmp/linux-config
+
+ARG LINUX_VERSION=6.12.29
+ARG LINUX_TAR_XZ_SHA256=e8b2ec7e2338ccb9c86de7154f6edcaadfce80907493c143e85a82776bb5064d
+ARG LINUX_BZIMAGE_SHA256=5d06292d0844038bb96dfe50d5ed1ec8899fe0cfe6560a81e392cee2e2efbe50
 
 #Build Linux
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
-export SOURCE_DATE_EPOCH=$(cat $WRITE_SOURCE_DATE_EPOCH)
 export KBUILD_BUILD_VERSION=1
 export KBUILD_BUILD_USER=quex
 export KBUILD_BUILD_HOST=quex
@@ -66,7 +96,6 @@ ARG CRUN_BIN_SHA256=5fca2c7b21b4182f10bbaaafb10ac5131d74f66bfba2fad61a4cd9190d0a
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
-export SOURCE_DATE_EPOCH=$(cat $WRITE_SOURCE_DATE_EPOCH)
 mkdir -p /tmp/crun ${ROOTFS_DIR}/usr/lib/x86_64-linux-gnu
 curl -L https://github.com/containers/crun/releases/download/${CRUN_VERSION}/crun-${CRUN_VERSION}.tar.gz -o /tmp/crun/crun.tar.gz
 cd /tmp/crun
@@ -103,7 +132,6 @@ COPY src/init /tmp/init
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
-export SOURCE_DATE_EPOCH=$(cat $WRITE_SOURCE_DATE_EPOCH)
 cd /tmp/init
 make clean
 make
@@ -134,13 +162,13 @@ EOF
 
 COPY rootfs ${ROOTFS_DIR}
 
-ARG BASE_ROOTFS_CPIO_GZ_SHA256=4a3c1c2aaa5bd17f69cede536d56496f1792a46439d7014728d2974e290a15cb
+ARG BASE_ROOTFS_CPIO_GZ_SHA256=54777a232bb64c9e3c833b56407bcfe98f6ae4f0a136a7b95852867f0eee34d4
 
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
 cd ${ROOTFS_DIR}
-find . -exec touch -h -d "@$(cat $WRITE_SOURCE_DATE_EPOCH)" {} +
+find . -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
 LC_ALL=C find . \
   | LC_ALL=C sort \
   | cpio --reproducible -o -V -H newc \

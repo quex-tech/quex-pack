@@ -19,6 +19,8 @@ usage() {
   echo "  -o, --output PATH        save resulting EFI file to PATH (default: ukernel.efi)"
   echo "  --output-rootfs PATH     save initramfs to PATH (default: not saved)"
   echo "  --kernel-cmdline CMD     override kernel command-line paramters (default: console=ttynull)"
+  echo "  --key-request-mask HEX   use HEX as the mask over TD Report for secret key derivation (default: 04030000c70000)"
+  echo "  --vault-mrenclave HEX    override Quex Vault enclave identity"
   echo "  --builder-image IMAGE    use Docker IMAGE as UKI builder image (default: quex-base:latest)"
 }
 
@@ -26,6 +28,8 @@ kernel_cmdline=""
 builder_image="quex-base:latest"
 output_path="ukernel.efi"
 output_rootfs_path=""
+key_request_mask=""
+vault_mrenclave=""
 
 while true; do
   case $1 in
@@ -45,6 +49,16 @@ while true; do
     ;;
   --kernel-cmdline)
     kernel_cmdline=$2
+    shift 2
+    continue
+    ;;
+  --key-request-mask)
+    key_request_mask=$2
+    shift 2
+    continue
+    ;;
+  --vault-mrenclave)
+    vault_mrenclave=$2
     shift 2
     continue
     ;;
@@ -132,6 +146,8 @@ docker run --rm \
   -v "$(realpath "$in_dir")":/mnt/in \
   -v "$(realpath "$tmp_out")":/mnt/out \
   -e QUEX_KERNEL_CMDLINE="$kernel_cmdline" \
+  -e QUEX_KEY_REQUEST_MASK="$key_request_mask" \
+  -e QUEX_VAULT_MRENCLAVE="$vault_mrenclave" \
   "$builder_image" \
   "$source_image"
 
