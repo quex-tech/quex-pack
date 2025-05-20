@@ -61,6 +61,10 @@ find "$rootfs" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
   LC_ALL=C find . \
   | LC_ALL=C sort \
   | cpio --reproducible -o -V -H newc ) \
-  | gzip -9 -c -n >"/mnt/out/rootfs.cpio.gz"
+  | gzip -9 -c -n >"$work/rootfs.cpio.gz"
 
-cp /var/linux/bzImage /mnt/out/
+ukify build \
+  --linux=/var/linux/bzImage \
+  --initrd="$work/rootfs.cpio.gz" \
+  --cmdline="${QUEX_KERNEL_CMDLINE:-console=ttynull}" \
+  --output=/mnt/out/ukernel.efi

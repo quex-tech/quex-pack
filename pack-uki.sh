@@ -3,13 +3,14 @@ set -euo pipefail
 
 CONTAINER_IMAGE=${CONTAINER_IMAGE:-quex-base:latest}
 
-if [ "$#" -ne 2 ]; then
-  echo "Usage: $(basename "$0") <image-ref> <initrd-out>" >&2
+if [ "$#" -ne 3 ]; then
+  echo "Usage: $(basename "$0") <image-ref> <kernel-cmdline> <initrd-out>" >&2
   exit 1
 fi
 
 IMAGE_REF=$1
-INITRD_OUT=$2
+KERNEL_CMDLINE=$2
+INITRD_OUT=$3
 
 tmp_in="$(mktemp -d ".in.XXXXXX")"
 tmp_out="$(mktemp -d ".out.XXXXXX")"
@@ -23,8 +24,8 @@ fi
 docker run --rm \
   -v "$(realpath "$tmp_in")":/mnt/in \
   -v "$(realpath "$tmp_out")":/mnt/out \
+  -e QUEX_KERNEL_CMDLINE="$KERNEL_CMDLINE" \
   "$CONTAINER_IMAGE" \
   "$IMAGE_REF"
 
-mv "${tmp_out}/rootfs.cpio.gz" "$INITRD_OUT"
-mv "${tmp_out}/bzImage" "$PWD"
+mv "${tmp_out}/ukernel.efi" "$INITRD_OUT"

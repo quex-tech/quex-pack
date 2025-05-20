@@ -18,7 +18,7 @@ set -euo pipefail
 repro-sources-list.sh
 apt-get update
 apt-get install -y --no-install-recommends \
-  autoconf automake bc bison build-essential ca-certificates cpio curl fakeroot flex gcc git go-md2man gzip jq libcap-dev libelf-dev libncurses-dev libprotobuf-c-dev libseccomp-dev libssl-dev libsystemd-dev libtool libyajl-dev make pkgconf python3 skopeo umoci
+  autoconf automake bc bison build-essential ca-certificates cpio curl fakeroot flex gcc git go-md2man gzip jq libcap-dev libelf-dev libncurses-dev libprotobuf-c-dev libseccomp-dev libssl-dev libsystemd-dev libtool libyajl-dev make pkgconf python3 skopeo systemd-boot-efi systemd-ukify umoci
 rm -rf /var/log/* /var/cache/ldconfig/aux-cache
 EOF
 
@@ -107,6 +107,6 @@ EOF
 
 COPY rootfs ${ROOTFS_DIR}
 
-COPY src/pack/pack-rootfs.sh /usr/local/bin/
+COPY src/pack/pack-uki.sh /usr/local/bin/
 
-ENTRYPOINT ["/bin/bash", "/usr/local/bin/pack-rootfs.sh"]
+ENTRYPOINT ["/bin/bash", "/usr/local/bin/pack-uki.sh"]
