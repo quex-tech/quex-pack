@@ -19,6 +19,7 @@ umoci unpack --image "$oci_layout:latest" "$bundle"
 
 jq '
     .process                          = (.process                          // {})
+  | .process.env                      = (.process.env                      // [])
   | .mounts                           = (.mounts                           // [])
   | .linux                            = (.linux                            // {})
   | .linux.devices                    = (.linux.devices                    // [])
@@ -26,30 +27,42 @@ jq '
   | .linux.resources                  = (.linux.resources                  // {})
   | .linux.resources.devices          = (.linux.resources.devices          // [])
   | .process.terminal = false
+  | if (any(.process.env[]?; startswith("TD_SECRET_KEY=")) | not)
+      then .process.env += ["TD_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
+      else .
+    end
   | .mounts |= map(select(.type != "devpts"))
-  | .linux.namespaces |= map(select(.type != "network"))
-  | .mounts += [{
-      "destination": "/sys/kernel/config",
-      "type":        "bind",
-      "source":      "/sys/kernel/config",
-      "options":     ["rbind", "rw", "nosuid", "nodev", "noexec"]
-    }]
-  | .linux.devices += [{
-      "path":      "/dev/tdx_guest",
-      "type":      "c",
-      "major":     10,
-      "minor":     126,
-      "fileMode":  438,
-      "uid":       0,
-      "gid":       0
-    }]
-  | .linux.resources.devices += [{
-      "allow":  true,
-      "type":   "c",
-      "major":  10,
-      "minor":  126,
-      "access": "rwm"
-    }]
+  | if (any(.mounts[]?; .destination == "/sys/kernel/config") | not)
+      then .mounts += [{
+        "destination": "/sys/kernel/config",
+        "type":        "bind",
+        "source":      "/sys/kernel/config",
+        "options":     ["rbind","rw","nosuid","nodev","noexec"]
+      }]
+      else .
+    end
+  | if (any(.linux.devices[]?; .path == "/dev/tdx_guest") | not)
+      then .linux.devices += [{
+        "path":      "/dev/tdx_guest",
+        "type":      "c",
+        "major":     10,
+        "minor":     126,
+        "fileMode":  438,
+        "uid":       0,
+        "gid":       0
+      }]
+      else .
+    end
+  | if (any(.linux.resources.devices[]?; (.major == 10) and (.minor == 126)) | not)
+      then .linux.resources.devices += [{
+        "allow":  true,
+        "type":   "c",
+        "major":  10,
+        "minor":  126,
+        "access": "rwm"
+      }]
+      else .
+    end
 ' "$bundle/config.json" >"$bundle/config.json.new"
 mv "$bundle/config.json.new" "$bundle/config.json"
 rm "$bundle/umoci.json" "$bundle/"*.mtree
