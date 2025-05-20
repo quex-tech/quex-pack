@@ -57,14 +57,15 @@ rm "$bundle/umoci.json" "$bundle/"*.mtree
 
 find "$rootfs" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 
+echo "Packing rootfs.cpio.gz"
 ( cd "$rootfs" && \
   LC_ALL=C find . \
   | LC_ALL=C sort \
-  | cpio --reproducible -o -V -H newc ) \
-  | gzip -9 -c -n >"$work/rootfs.cpio.gz"
+  | cpio --reproducible -o -H newc ) \
+  | gzip -9 -c -n >"/mnt/out/rootfs.cpio.gz"
 
 ukify build \
   --linux=/var/linux/bzImage \
-  --initrd="$work/rootfs.cpio.gz" \
+  --initrd=/mnt/out/rootfs.cpio.gz \
   --cmdline="${QUEX_KERNEL_CMDLINE:-console=ttynull}" \
   --output=/mnt/out/ukernel.efi
