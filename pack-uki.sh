@@ -89,6 +89,11 @@ fi
 
 set -u
 
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Error: docker is not installed or not in PATH."
+  exit 1
+fi
+
 source_image=$1
 
 tmp_in="$(mktemp -d ".in.XXXXXX")"
@@ -137,8 +142,14 @@ oci-archive:*)
   cp "$source_image_archive_path" "$in_dir/image.tar"
   source_image=docker-archive:/mnt/in/image.tar
   ;;
+*:*)
+  echo "Unsupported transport '${source_image%%:*}'"
+  exit 1
+  ;;
 *)
-  echo "unsupported or transport in $source_image"
+  echo "Invalid source image '$source_image'"
+  echo "Expected 'transport:details'"
+  exit 1
   ;;
 esac
 
