@@ -84,8 +84,16 @@ echo "Packing rootfs.cpio.gz"
     cpio --reproducible -o -H newc) |
   gzip -9 -c -n >"/mnt/out/rootfs.cpio.gz"
 
+cp /var/linux/bzImage /mnt/out/bzImage
+
+kernel_cmdline="${QUEX_KERNEL_CMDLINE:-console=ttynull}"
+
 ukify build \
-  --linux=/var/linux/bzImage \
+  --linux=/mnt/out/bzImage \
   --initrd=/mnt/out/rootfs.cpio.gz \
   --cmdline="${QUEX_KERNEL_CMDLINE:-console=ttynull}" \
   --output=/mnt/out/ukernel.efi
+
+cd /mnt/out
+sha384sum *
+echo "Kernel command line: '$kernel_cmdline'"

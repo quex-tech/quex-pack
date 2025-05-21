@@ -18,6 +18,7 @@ usage() {
   echo "  -h, --help               display this help text"
   echo "  -o, --output PATH        save resulting EFI file to PATH (default: ukernel.efi)"
   echo "  --output-rootfs PATH     save initramfs to PATH (default: not saved)"
+  echo "  --output-kernel PATH     save Linux kernel to PATH (default: not saved)"
   echo "  --kernel-cmdline CMD     override kernel command-line paramters (default: console=ttynull)"
   echo "  --key-request-mask HEX   use HEX as the mask over TD Report for secret key derivation (default: 04030000c70000)"
   echo "  --vault-mrenclave HEX    override Quex Vault enclave identity"
@@ -28,6 +29,7 @@ kernel_cmdline=""
 builder_image="quex-base:latest"
 output_path="ukernel.efi"
 output_rootfs_path=""
+output_kernel_path=""
 key_request_mask=""
 vault_mrenclave=""
 
@@ -44,6 +46,11 @@ while true; do
     ;;
   --output-rootfs)
     output_rootfs_path=$2
+    shift 2
+    continue
+    ;;
+  --output-kernel)
+    output_kernel_path=$2
     shift 2
     continue
     ;;
@@ -165,4 +172,7 @@ docker run --rm \
 mv "${tmp_out}/ukernel.efi" "$output_path"
 if [ "$output_rootfs_path" ]; then
   mv "${tmp_out}/rootfs.cpio.gz" "$output_rootfs_path"
+fi
+if [ "$output_kernel_path" ]; then
+  mv "${tmp_out}/bzImage" "$output_kernel_path"
 fi
