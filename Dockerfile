@@ -3,9 +3,8 @@ FROM ubuntu@sha256:dc17125eaac86538c57da886e494a34489122fb6a3ebb6411153d742594c2
 
 ARG ROOTFS_DIR=/var/rootfs
 
-ENV DEBIAN_FRONTEND=noninteractive
-
 # Install Ubuntu packages
+ENV DEBIAN_FRONTEND=noninteractive
 RUN \
     --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -59,13 +58,11 @@ EOF
 
 ENV SOURCE_DATE_EPOCH=1747699200
 
+#Build Linux
 COPY src/linux /tmp/linux-config
-
 ARG LINUX_VERSION=6.12.29
 ARG LINUX_TAR_XZ_SHA256=e8b2ec7e2338ccb9c86de7154f6edcaadfce80907493c143e85a82776bb5064d
 ARG LINUX_BZIMAGE_SHA256=5d06292d0844038bb96dfe50d5ed1ec8899fe0cfe6560a81e392cee2e2efbe50
-
-#Build Linux
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -88,11 +85,10 @@ cp arch/x86/boot/bzImage /var/linux/
 rm -rf /tmp/linux
 EOF
 
+# Build crun
 ARG CRUN_VERSION=1.21
 ARG CRUN_TAR_GZ_SHA256=4bfb700e764a4804a4de3ecf07753f4c391005356d60356df65d80ae0914c486
 ARG CRUN_BIN_SHA256=5fca2c7b21b4182f10bbaaafb10ac5131d74f66bfba2fad61a4cd9190d0af206
-
-# Build crun
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -123,12 +119,10 @@ make install
 rm -rf /tmp/crun
 EOF
 
+# Build init
 ARG INIT_BIN_SHA256=30cd24ca690bed97afb6405ad7c27a3a09fab0ed22e53f1ba5c941c5f2bdec72
 ARG LIBTDX_ATTEST_SO_SHA256=d26f8ac5df799edc6bce92f7b45c46fe03cc3841ef64e542b7c2e7d44d789820
-
 COPY src/init /tmp/init
-
-# Build init
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -160,10 +154,9 @@ for libname in ld-linux-x86-64 libc; do
 done
 EOF
 
+# Finalize rootfs and verify its checksum
 COPY rootfs ${ROOTFS_DIR}
-
 ARG BASE_ROOTFS_CPIO_GZ_SHA256=54777a232bb64c9e3c833b56407bcfe98f6ae4f0a136a7b95852867f0eee34d4
-
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -175,8 +168,8 @@ LC_ALL=C find . \
   | gzip -9 -c -n >/tmp/base-rootfs.cpio.gz
 sha256sum /tmp/base-rootfs.cpio.gz
 sha256sum -c <<<"$BASE_ROOTFS_CPIO_GZ_SHA256  /tmp/base-rootfs.cpio.gz"
+rm /tmp/base-rootfs.cpio.gz
 EOF
 
 COPY src/pack/pack-uki.sh /usr/local/bin/
-
 ENTRYPOINT ["/bin/bash", "/usr/local/bin/pack-uki.sh"]
