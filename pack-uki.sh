@@ -6,7 +6,7 @@ usage() {
   echo "$0 [OPTIONS] SOURCE_IMAGE"
   echo
   echo "Example:"
-  echo "$0 docker-daemon:myimage:mytag -o myuki.efi"
+  echo "$0 -o myuki.efi docker-daemon:myimage:mytag"
   echo
   echo "Build a minimalist Unified kernel image using SOURCE_IMAGE as the payload container."
   echo
