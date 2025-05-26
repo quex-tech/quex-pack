@@ -32,6 +32,7 @@ jq '
       else .
     end
   | .mounts |= map(select(.type != "devpts"))
+  | .linux.namespaces |= map(select(.type != "network"))
   | if (any(.mounts[]?; .destination == "/sys/kernel/config") | not)
       then .mounts += [{
         "destination": "/sys/kernel/config",

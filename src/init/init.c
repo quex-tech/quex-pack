@@ -48,8 +48,16 @@ int main(void) {
 		char *exec_envp[] = {NULL};
 		execve("/usr/bin/crun", exec_argv, exec_envp);
 	} else if (pid > 0) {
+		trace("Waiting for crun to exit...\n");
 		int status;
-		waitpid(pid, &status, 0);
+		if (waitpid(pid, &status, 0) == 0)
+		{
+			trace("crun exited with status %d\n", status);
+		}
+		else
+		{
+			perror("waitpid failed");
+		}
 	} else {
 		perror("vfork failed");
 	}

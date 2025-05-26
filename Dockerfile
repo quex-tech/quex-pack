@@ -120,7 +120,7 @@ rm -rf /tmp/crun
 EOF
 
 # Build init
-ARG INIT_BIN_SHA256=30cd24ca690bed97afb6405ad7c27a3a09fab0ed22e53f1ba5c941c5f2bdec72
+ARG INIT_BIN_SHA256=99a01c0cdb63369b652daa4e856907fac50b8a0d252dbccdf6e00c75d1f82b42
 ARG LIBTDX_ATTEST_SO_SHA256=d26f8ac5df799edc6bce92f7b45c46fe03cc3841ef64e542b7c2e7d44d789820
 COPY src/init /tmp/init
 RUN <<EOF
@@ -156,7 +156,7 @@ EOF
 
 # Finalize rootfs and verify its checksum
 COPY rootfs ${ROOTFS_DIR}
-ARG BASE_ROOTFS_CPIO_GZ_SHA256=54777a232bb64c9e3c833b56407bcfe98f6ae4f0a136a7b95852867f0eee34d4
+ARG BASE_ROOTFS_CPIO_GZ_SHA256=4a64bbe99cf0122c82f4de5e8e3481edbfb1533fc88d0cc1ca08a58b12700047
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
