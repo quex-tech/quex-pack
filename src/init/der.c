@@ -8,7 +8,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-conversion"
 
-// copied from vendor/mbedtls/library/ecdsa.c
+// copied from vendor/src/mbedtls-3.6.3/library/ecdsa.c
 static int ecdsa_signature_to_asn1(const mbedtls_mpi *r, const mbedtls_mpi *s, unsigned char *sig,
                                    size_t sig_size, size_t *slen) {
 	int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;

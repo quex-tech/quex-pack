@@ -1,4 +1,2 @@
-src/init/vendor
-src/init/init
 *.efi
 *.cpio.gz
