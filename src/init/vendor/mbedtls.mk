@@ -10,9 +10,9 @@ mbedtls: $(MBEDTLS_STAMP)
 
 $(MBEDTLS_STAMP): $(MBEDTLS_SRC_DIR)
 	$(MAKE) -C $(MBEDTLS_SRC_DIR) lib CFLAGS="$(MBEDTLS_CFLAGS)"
-	@mkdir -p $(VENDOR_OUT_DIR)/lib
-	@cp -a $(MBEDTLS_SRC_DIR)/include $(VENDOR_OUT_DIR)/
-	@cp $(MBEDTLS_SRC_DIR)/library/lib* $(VENDOR_OUT_DIR)/lib/
+	@mkdir -p $(VENDOR_OUT_DIR)/usr
+	@rsync -av --include='*/' --include='*.h' --exclude='*' $(MBEDTLS_SRC_DIR)/include/ $(VENDOR_OUT_DIR)/usr/include/
+	@rsync -av --include='*/' --include='*.a' --exclude='*' $(MBEDTLS_SRC_DIR)/library/ $(VENDOR_OUT_DIR)/usr/lib/
 	@touch $@
 
 $(MBEDTLS_SRC_DIR): $(MBEDTLS_TAR_BZ2)
