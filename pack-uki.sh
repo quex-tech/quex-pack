@@ -10,6 +10,7 @@ Examples:
   $0 -o myuki.efi docker-daemon:myimage:mytag
 
 Build a minimalist VM using SOURCE_IMAGE as the payload container.
+  $0 --payload-destination disk -o myuki.efi --output-disk mydisk.img docker-daemon:myimage:mytag
 
 SOURCE_IMAGE is in transport:details format.
 Supported transports: dir, docker, docker-archive, docker-daemon, oci, oci-archive.
@@ -32,7 +33,9 @@ kernel_cmdline=""
 default_kernel_cmdline="console=ttynull"
 kernel_path="/var/linux/bzImage"
 builder_image="quex-base:latest"
+payload_destination="initramfs"
 output_path="ukernel.efi"
+output_disk_path="disk.img"
 output_rootfs_path=""
 output_kernel_path=""
 key_request_mask=""
@@ -44,8 +47,27 @@ while true; do
     usage
     exit 0
     ;;
+  --payload-destination)
+    case "$2" in
+      initramfs|disk)
+        payload_destination=$2
+        ;;
+      *)
+        echo "Invalid value for --payload-destination: $2"
+        echo "Valid options are: initramfs, disk"
+        exit 1
+        ;;
+    esac
+    shift 2
+    continue
+    ;;
   -o | --output)
     output_path=$2
+    shift 2
+    continue
+    ;;
+  --output-disk)
+    output_disk_path=$2
     shift 2
     continue
     ;;
@@ -178,10 +200,14 @@ docker run --rm \
   -e QUEX_KERNEL_PATH="$kernel_path" \
   -e QUEX_KEY_REQUEST_MASK="$key_request_mask" \
   -e QUEX_VAULT_MRENCLAVE="$vault_mrenclave" \
+  -e QUEX_PAYLOAD_DESTINATION="$payload_destination" \
   "$builder_image" \
   "$source_image"
 
 mv "${tmp_out}/ukernel.efi" "$output_path"
+if [ "$payload_destination" == "disk" ]; then
+  mv "${tmp_out}/disk.img" "$output_disk_path"
+fi
 if [ "$output_rootfs_path" ]; then
   mv "${tmp_out}/rootfs.cpio.gz" "$output_rootfs_path"
 fi

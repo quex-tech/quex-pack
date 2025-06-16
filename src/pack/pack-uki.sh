@@ -11,7 +11,7 @@ IMAGE_SRC=$1
 work=/tmp/work
 oci_layout=$work/oci
 rootfs=/var/rootfs
-bundle=$rootfs/opt/bundle
+bundle=$work/bundle
 
 mkdir -p "$work" "$bundle"
 skopeo copy "$IMAGE_SRC" "oci:$oci_layout:latest"
@@ -76,6 +76,7 @@ jq '
 ' "$bundle/config.json" >"$bundle/config.json.new"
 mv "$bundle/config.json.new" "$bundle/config.json"
 rm "$bundle/umoci.json" "$bundle/"*.mtree
+find "$bundle" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 
 if [[ $QUEX_KEY_REQUEST_MASK ]]; then
   echo $QUEX_KEY_REQUEST_MASK | xxd -r -p >"$rootfs/etc/key_request_mask.bin"
@@ -84,6 +85,28 @@ fi
 if [[ $QUEX_VAULT_MRENCLAVE ]]; then
   echo $QUEX_VAULT_MRENCLAVE | xxd -r -p >"$rootfs/etc/vault_mrenclave.bin"
 fi
+
+payload_dest=${QUEX_PAYLOAD_DESTINATION:-initramfs}
+default_kernel_cmdline="console=ttynull"
+kernel_cmdline="${QUEX_KERNEL_CMDLINE:-$default_kernel_cmdline}"
+
+case "$payload_dest" in
+  disk)
+    pack-disk.sh $bundle /mnt/out/disk.img $work/verity.table
+    table=$(cat $work/verity.table)
+    kernel_cmdline="$kernel_cmdline dm-mod.create=\"quex,,,ro,$table\""
+    ;;
+
+  initramfs|"")
+    mkdir -p "$rootfs/opt"
+    cp -aT "$bundle" "$rootfs/opt/bundle"
+    ;;
+
+  *)
+    echo "Unsupported QUEX_PAYLOAD_DESTINATION='$payload_dest'; expected 'disk' or 'initramfs'." >&2
+    exit 1
+    ;;
+esac
 
 find "$rootfs" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 
@@ -96,12 +119,10 @@ echo "Packing rootfs.cpio.gz"
 
 cp $QUEX_KERNEL_PATH /mnt/out/bzImage
 
-kernel_cmdline="${QUEX_KERNEL_CMDLINE:-console=ttynull}"
-
 ukify build \
   --linux=/mnt/out/bzImage \
   --initrd=/mnt/out/rootfs.cpio.gz \
-  --cmdline="${QUEX_KERNEL_CMDLINE:-console=ttynull}" \
+  --cmdline="$kernel_cmdline" \
   --output=/mnt/out/ukernel.efi
 
 cd /mnt/out

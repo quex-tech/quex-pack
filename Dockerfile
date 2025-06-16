@@ -22,6 +22,7 @@ DEBIAN_FRONTEND=noninteractive \
   build-essential \
   ca-certificates \
   cpio \
+  cryptsetup \
   curl \
   fakeroot \
   flex \
@@ -44,6 +45,7 @@ DEBIAN_FRONTEND=noninteractive \
   python3 \
   rsync \
   skopeo \
+  squashfs-tools \
   systemd-boot-efi=255.4-1ubuntu8.6 \
   systemd-ukify \
   umoci \
@@ -176,5 +178,5 @@ EOF
 
 ENV SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH
 
-COPY src/pack/pack-uki.sh /usr/local/bin/
+COPY src/pack/*.sh /usr/local/bin/
 ENTRYPOINT ["/bin/bash", "/usr/local/bin/pack-uki.sh"]
