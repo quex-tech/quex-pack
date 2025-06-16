@@ -43,6 +43,7 @@ DEBIAN_FRONTEND=noninteractive \
   make \
   pkgconf \
   python3 \
+  rsync \
   skopeo \
   systemd-boot-efi=255.4-1ubuntu8.6 \
   systemd-ukify \
@@ -131,12 +132,12 @@ set -euo pipefail
 cd /tmp/init
 make clean
 make
-sha256sum init vendor/intel/usr/lib/x86_64-linux-gnu/libtdx_attest.so
+sha256sum init vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so
 sha256sum -c <<<"$INIT_BIN_SHA256  init
-$LIBTDX_ATTEST_SO_SHA256  vendor/intel/usr/lib/x86_64-linux-gnu/libtdx_attest.so"
+$LIBTDX_ATTEST_SO_SHA256  vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so"
 mkdir -p ${ROOTFS_DIR}/usr/lib
 cp init ${ROOTFS_DIR}/
-cp -a vendor/intel/usr/lib/x86_64-linux-gnu ${ROOTFS_DIR}/usr/lib/
+cp -a vendor/build/usr/lib/x86_64-linux-gnu ${ROOTFS_DIR}/usr/lib/
 rm -rf /tmp/init
 EOF
 
