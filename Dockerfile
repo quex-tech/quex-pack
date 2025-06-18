@@ -69,7 +69,6 @@ ARG LINUX_VERSION=6.12.33
 ARG LINUX_TAR_XZ_SHA256=c0a575630f2603a20bb0641f8df8f955e46c9d7ac1fae8b54b21316e6b52a254
 ADD --checksum=sha256:$LINUX_TAR_XZ_SHA256 https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${LINUX_VERSION}.tar.xz /tmp/linux/linux.tar.xz
 ARG LINUX_BZIMAGE_SHA256=c0b54e994e161f0ecaad3525526bfdcbdbaa56f9dc3e8b895f43c6c0d66355a2
-
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail

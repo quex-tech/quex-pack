@@ -9,8 +9,9 @@ Usage:
 Examples:
   $0 -o myuki.efi docker-daemon:myimage:mytag
 
-Build a minimalist VM using SOURCE_IMAGE as the payload container.
   $0 --payload-destination disk -o myuki.efi --output-disk mydisk.img docker-daemon:myimage:mytag
+
+Build a minimalist VM using SOURCE_IMAGE as the payload container.
 
 SOURCE_IMAGE is in transport:details format.
 Supported transports: dir, docker, docker-archive, docker-daemon, oci, oci-archive.

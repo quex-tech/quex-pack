@@ -88,8 +88,7 @@ if [[ $QUEX_VAULT_MRENCLAVE ]]; then
 fi
 
 payload_dest=${QUEX_PAYLOAD_DESTINATION:-initramfs}
-default_kernel_cmdline="console=ttynull"
-kernel_cmdline="${QUEX_KERNEL_CMDLINE:-$default_kernel_cmdline}"
+kernel_cmdline="${QUEX_KERNEL_CMDLINE}"
 
 case "$payload_dest" in
   disk)
