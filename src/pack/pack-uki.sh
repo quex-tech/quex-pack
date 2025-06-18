@@ -42,6 +42,15 @@ jq '
       }]
       else .
     end
+  | if (any(.mounts[]?; .destination == "/var/data") | not)
+        then .mounts += [{
+          "destination": "/var/data",
+          "type":        "bind",
+          "source":      "/var/data",
+          "options":     ["rbind","ro","nosuid","nodev","noexec"]
+        }]
+        else .
+      end
   | if (any(.linux.devices[]?; .path == "/dev/tdx_guest") | not)
       then .linux.devices += [{
         "path":      "/dev/tdx_guest",
@@ -85,7 +94,7 @@ echo "Packing rootfs.cpio.gz"
     cpio --reproducible -o -H newc) |
   gzip -9 -c -n >"/mnt/out/rootfs.cpio.gz"
 
-cp /var/linux/bzImage /mnt/out/bzImage
+cp $QUEX_KERNEL_PATH /mnt/out/bzImage
 
 kernel_cmdline="${QUEX_KERNEL_CMDLINE:-console=ttynull}"
 

@@ -5,7 +5,6 @@ FROM ubuntu@sha256:dc17125eaac86538c57da886e494a34489122fb6a3ebb6411153d742594c2
 ARG LD_LINUX_SO_SHA256=6c5e1b4528b704dc7081aa45b5037bda4ea9cad78ca562b4fb6b0dbdbfc7e7e7
 ARG LIBC_SO_SHA256=e7a914a33fd4f6d25057b8d48c7c5f3d55ab870ec4ee27693d6c5f3a532e6226
 ARG EFI_STUB_SHA256=078e09f18b7754a7a542814c0a30ce059743d6ff334a282a288b7cf23b11662f
-
 RUN \
   --mount=type=cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -76,15 +75,18 @@ cd /tmp/linux
 tar -x -f linux.tar.xz
 cd linux-${LINUX_VERSION}
 cp /tmp/linux-config/kernel.config .config
-KBUILD_BUILD_VERSION=1 \
-  KBUILD_BUILD_USER=quex \
-  KBUILD_BUILD_HOST=quex \
-  KBUILD_BUILD_TIMESTAMP="$(LC_ALL=C TZ=\"UTC\" date -d @$SOURCE_DATE_EPOCH)" \
-  make -j$(nproc)
+export KBUILD_BUILD_VERSION=1
+export KBUILD_BUILD_USER=quex
+export KBUILD_BUILD_HOST=quex
+export KBUILD_BUILD_TIMESTAMP="$(LC_ALL=C TZ=\"UTC\" date -d @$SOURCE_DATE_EPOCH)"
+make -j$(nproc)
 sha256sum arch/x86/boot/bzImage
 sha256sum -c <<<"$LINUX_BZIMAGE_SHA256  arch/x86/boot/bzImage"
 mkdir -p /var/linux
 cp arch/x86/boot/bzImage /var/linux/
+scripts/kconfig/merge_config.sh .config /tmp/linux-config/kernel_debug.config
+make -j$(nproc)
+cp arch/x86/boot/bzImage /var/linux/debug.bzImage
 rm -rf /tmp/linux
 EOF
 
@@ -93,7 +95,6 @@ ARG CRUN_VERSION=1.21
 ARG CRUN_TAR_GZ_SHA256=4bfb700e764a4804a4de3ecf07753f4c391005356d60356df65d80ae0914c486
 ADD --checksum=sha256:$CRUN_TAR_GZ_SHA256 https://github.com/containers/crun/releases/download/${CRUN_VERSION}/crun-${CRUN_VERSION}.tar.gz /tmp/crun/crun.tar.gz
 ARG CRUN_BIN_SHA256=5fca2c7b21b4182f10bbaaafb10ac5131d74f66bfba2fad61a4cd9190d0af206
-
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -122,10 +123,9 @@ rm -rf /tmp/crun
 EOF
 
 # Build init
-ARG INIT_BIN_SHA256=99a01c0cdb63369b652daa4e856907fac50b8a0d252dbccdf6e00c75d1f82b42
+ARG INIT_BIN_SHA256=31686a5435940d82f5f1d379589959a550e92447f294efd71228bb08f9f9ecb2
 ARG LIBTDX_ATTEST_SO_SHA256=d26f8ac5df799edc6bce92f7b45c46fe03cc3841ef64e542b7c2e7d44d789820
 COPY src/init /tmp/init
-
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -145,7 +145,7 @@ EOF
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
-for dirname in proc sys usr/lib/x86_64-linux-gnu; do
+for dirname in proc sys var/data usr/lib/x86_64-linux-gnu; do
   mkdir -p ${ROOTFS_DIR}/${dirname}
 done
 cp -a /bin ${ROOTFS_DIR}/
@@ -159,7 +159,7 @@ EOF
 
 # Finalize rootfs and verify its checksum
 COPY rootfs ${ROOTFS_DIR}
-ARG BASE_ROOTFS_CPIO_GZ_SHA256=4a64bbe99cf0122c82f4de5e8e3481edbfb1533fc88d0cc1ca08a58b12700047
+ARG BASE_ROOTFS_CPIO_GZ_SHA256=65ab82341e1f5690b351c83fd21a3536c64875d029287a54122cfd77f4176e61
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail

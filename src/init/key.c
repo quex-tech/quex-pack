@@ -257,6 +257,20 @@ int get_sk(uint8_t sk[32]) {
 			goto cleanup_iteration;
 		}
 
+		tdx_uuid_t selected_att_key_id = {0};
+		uint8_t *p_quote_buf = NULL;
+		uint32_t quote_size = 0;
+		if ((ret = tdx_att_get_quote(&report_data, NULL, 0, &selected_att_key_id,
+		                             &p_quote_buf, &quote_size, 0)) != TDX_ATTEST_SUCCESS) {
+			trace("tdx_att_get_quote failed: %d\n", ret);
+			goto cleanup_iteration;
+		}
+
+		if ((ret = write_hex_to_file("/var/data/quote.txt", p_quote_buf, quote_size))) {
+			trace("write_hex_to_file failed: %d\n", ret);
+			goto cleanup_iteration;
+		}
+
 		trace("Sending key request...\n");
 		send(client, &key_request, sizeof(td_key_request_t), MSG_NOSIGNAL);
 

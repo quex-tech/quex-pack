@@ -2,30 +2,35 @@
 set -eo pipefail
 
 usage() {
-  echo "Usage:"
-  echo "$0 [OPTIONS] SOURCE_IMAGE"
-  echo
-  echo "Example:"
-  echo "$0 -o myuki.efi docker-daemon:myimage:mytag"
-  echo
-  echo "Build a minimalist Unified kernel image using SOURCE_IMAGE as the payload container."
-  echo
-  echo "SOURCE_IMAGE is in transport:details format."
-  echo "Supported transports: dir, docker, docker-archive, docker-daemon, oci, oci-archive."
-  echo "See containers-transports(5) (https://github.com/containers/image/blob/main/docs/containers-transports.5.md) for details."
-  echo
-  echo "Options:"
-  echo "  -h, --help               display this help text"
-  echo "  -o, --output PATH        save resulting EFI file to PATH (default: ukernel.efi)"
-  echo "  --output-rootfs PATH     save initramfs to PATH (default: not saved)"
-  echo "  --output-kernel PATH     save Linux kernel to PATH (default: not saved)"
-  echo "  --kernel-cmdline CMD     override kernel command-line paramters (default: console=ttynull)"
-  echo "  --key-request-mask HEX   use HEX as the mask over TD Report for secret key derivation (default: 04030000c70000)"
-  echo "  --vault-mrenclave HEX    override Quex Vault enclave identity"
-  echo "  --builder-image IMAGE    use Docker IMAGE as UKI builder image (default: quex-base:latest)"
+  cat <<EOF
+Usage:
+  $0 [OPTIONS] SOURCE_IMAGE
+
+Examples:
+  $0 -o myuki.efi docker-daemon:myimage:mytag
+
+Build a minimalist VM using SOURCE_IMAGE as the payload container.
+
+SOURCE_IMAGE is in transport:details format.
+Supported transports: dir, docker, docker-archive, docker-daemon, oci, oci-archive.
+See containers-transports(5) (https://github.com/containers/image/blob/main/docs/containers-transports.5.md) for details.
+
+Options:
+  -h, --help                  display this help text
+  -o, --output PATH           save resulting EFI file to PATH (default: ukernel.efi)
+  --output-rootfs PATH        save initramfs to PATH (default: not saved)
+  --output-kernel PATH        save Linux kernel to PATH (default: not saved)
+  --kernel-cmdline CMD        override kernel command-line parameters (default: console=ttynull or console=ttyS0 if --debug specified)
+  --key-request-mask HEX      use HEX as the mask over TD Report for secret key derivation (default: 04030000c70000)
+  --vault-mrenclave HEX       override Quex Vault enclave identity
+  --builder-image IMAGE       use Docker IMAGE as UKI builder image (default: quex-base:latest)
+  --debug                     use non-minimal Linux kernel build to allow debug output to the console
+EOF
 }
 
 kernel_cmdline=""
+default_kernel_cmdline="console=ttynull"
+kernel_path="/var/linux/bzImage"
 builder_image="quex-base:latest"
 output_path="ukernel.efi"
 output_rootfs_path=""
@@ -72,6 +77,12 @@ while true; do
   --builder-image)
     builder_image=$2
     shift 2
+    continue
+    ;;
+  --debug)
+    kernel_path="/var/linux/debug.bzImage"
+    default_kernel_cmdline="console=ttyS0"
+    shift
     continue
     ;;
   --)
@@ -163,7 +174,8 @@ esac
 docker run --rm \
   -v "$(realpath "$in_dir")":/mnt/in \
   -v "$(realpath "$tmp_out")":/mnt/out \
-  -e QUEX_KERNEL_CMDLINE="$kernel_cmdline" \
+  -e QUEX_KERNEL_CMDLINE="${kernel_cmdline:-$default_kernel_cmdline}" \
+  -e QUEX_KERNEL_PATH="$kernel_path" \
   -e QUEX_KEY_REQUEST_MASK="$key_request_mask" \
   -e QUEX_VAULT_MRENCLAVE="$vault_mrenclave" \
   "$builder_image" \

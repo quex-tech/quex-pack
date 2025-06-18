@@ -60,6 +60,28 @@ void write_hex(uint8_t *bytes, size_t bytes_len, char *dest) {
 	}
 }
 
+int write_hex_to_file(const char *filename, uint8_t *bytes, size_t bytes_len) {
+	FILE *file = fopen(filename, "w");
+	if (!file) {
+		return -1;
+	}
+
+	char *hex_str = malloc(bytes_len * 2 + 1);
+	if (!hex_str) {
+		fclose(file);
+		return -2;
+	}
+
+	write_hex(bytes, bytes_len, hex_str);
+	hex_str[bytes_len * 2] = '\0';
+
+	fprintf(file, "%s", hex_str);
+
+	free(hex_str);
+	fclose(file);
+	return 0;
+}
+
 int replace_in_file(const char *filename, const char *target, const char *replacement) {
 	FILE *f = fopen(filename, "r+b");
 	if (!f) {
