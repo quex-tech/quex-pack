@@ -124,7 +124,7 @@ rm -rf /tmp/crun
 EOF
 
 # Build init
-ARG INIT_BIN_SHA256=99129d9b1d67d81677ba3864cfa7747f37286c5a4f9c7c5201a35ecd77315151
+ARG INIT_BIN_SHA256=80acb9b86f16169c628bfd6b31ac569a2255fd88405ba5c18d3fd2dcc68d18f8
 ARG LIBTDX_ATTEST_SO_SHA256=d26f8ac5df799edc6bce92f7b45c46fe03cc3841ef64e542b7c2e7d44d789820
 COPY src/init /tmp/init
 RUN <<EOF
@@ -146,7 +146,7 @@ EOF
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
-for dirname in proc sys var/data usr/lib/x86_64-linux-gnu; do
+for dirname in proc sys mnt/bundle var/data usr/lib/x86_64-linux-gnu; do
   mkdir -p ${ROOTFS_DIR}/${dirname}
 done
 cp -a /bin ${ROOTFS_DIR}/
@@ -160,7 +160,7 @@ EOF
 
 # Finalize rootfs and verify its checksum
 COPY rootfs ${ROOTFS_DIR}
-ARG BASE_ROOTFS_CPIO_GZ_SHA256=0b46cd0ebfc05f8ff5bc6ff7c7df973365f9461c27e21d80ff2f94bd55671cd6
+ARG ROOTFS_CPIO_GZ_SHA256=abf44edaf8e15e953e8829600522092b0e8f1b2822e3c4216b90562435af9025
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -169,10 +169,9 @@ find . -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
 LC_ALL=C find . \
   | LC_ALL=C sort \
   | cpio --reproducible -o -V -H newc \
-  | gzip -9 -c -n >/tmp/base-rootfs.cpio.gz
-sha256sum /tmp/base-rootfs.cpio.gz
-sha256sum -c <<<"$BASE_ROOTFS_CPIO_GZ_SHA256  /tmp/base-rootfs.cpio.gz"
-rm /tmp/base-rootfs.cpio.gz
+  | gzip -9 -c -n >/var/rootfs.cpio.gz
+sha256sum /var/rootfs.cpio.gz
+sha256sum -c <<<"$ROOTFS_CPIO_GZ_SHA256  /var/rootfs.cpio.gz"
 EOF
 
 ENV SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH

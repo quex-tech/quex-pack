@@ -42,8 +42,8 @@ output_path="ukernel.efi"
 output_disk_path="disk.img"
 output_rootfs_path=""
 output_kernel_path=""
-key_request_mask=""
-vault_mrenclave=""
+key_request_mask="04030000c70000"
+vault_mrenclave="231c8240fb43d8ee81a813a3a3fb05e3b9f1ae9064fe4d8629cf691a58d74112"
 
 while true; do
   case $1 in

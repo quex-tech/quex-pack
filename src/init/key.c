@@ -14,8 +14,8 @@
 #include <unistd.h>
 
 #define PORT 24516
-#define MASK_PATH "/etc/key_request_mask.bin"
-#define VAULT_MRENCLAVE_PATH "/etc/vault_mrenclave.bin"
+#define MASK_ENV_VAR "quex_key_request_mask"
+#define VAULT_MRENCLAVE_ENV_VAR "quex_vault_mrenclave"
 #define ROOT_PEM_PATH "/etc/root.pem"
 #define ROOT_PEM_SIZE 964
 
@@ -236,15 +236,16 @@ int get_sk(uint8_t sk[32]) {
 	}
 
 	td_key_request_t key_request;
-	if ((ret = load_binary(MASK_PATH, &key_request.mask, sizeof(td_key_request_mask_t))) != 0) {
-		trace("Could not load %s: %d\n", MASK_PATH, ret);
+	if ((ret = read_hex_from_env(MASK_ENV_VAR, (uint8_t *)&key_request.mask,
+	                             sizeof(td_key_request_mask_t))) != 0) {
+		trace("Could not read %s: %d\n", MASK_ENV_VAR, ret);
 		goto cleanup;
 	}
 
 	sgx_measurement_t mr_enclave;
-	if ((ret = load_binary(VAULT_MRENCLAVE_PATH, &mr_enclave, sizeof(sgx_measurement_t))) !=
-	    0) {
-		trace("Could not load %s: %d\n", VAULT_MRENCLAVE_PATH, ret);
+	if ((ret = read_hex_from_env(VAULT_MRENCLAVE_ENV_VAR, (uint8_t *)&mr_enclave,
+	                             sizeof(sgx_measurement_t))) != 0) {
+		trace("Could not read %s: %d\n", VAULT_MRENCLAVE_ENV_VAR, ret);
 		goto cleanup;
 	}
 

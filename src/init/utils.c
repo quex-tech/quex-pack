@@ -1,4 +1,6 @@
+#include "utils.h"
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -82,6 +84,33 @@ int write_hex_to_file(const char *filename, uint8_t *bytes, size_t bytes_len) {
 	return 0;
 }
 
+int read_hex(const char *hex, uint8_t *dest, size_t dest_len) {
+	size_t hex_len = 0;
+	while (isxdigit(hex[hex_len])) {
+		hex_len++;
+	}
+
+	if (hex_len != dest_len * 2) {
+		return -1;
+	}
+
+	for (size_t i = 0; i < dest_len; i++) {
+		if (sscanf(hex + i * 2, "%2hhx", &dest[i]) != 1) {
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+int read_hex_from_env(const char *env_var, uint8_t *dest, size_t dest_len) {
+	const char *hex = getenv(env_var);
+	if (!hex) {
+		return -1;
+	}
+	return read_hex(hex, dest, dest_len);
+}
+
 int replace_in_file(const char *filename, const char *target, const char *replacement) {
 	FILE *f = fopen(filename, "r+b");
 	if (!f) {
@@ -122,4 +151,42 @@ int replace_in_file(const char *filename, const char *target, const char *replac
 	free(data);
 	fclose(f);
 	return 0;
+}
+
+int copy_file(const char *src_path, const char *dst_path) {
+	int ret = -1;
+	FILE *source = NULL;
+	FILE *dest = NULL;
+	char buf[8192];
+	size_t nread;
+
+	source = fopen(src_path, "rb");
+	if (!source) {
+		goto cleanup;
+	}
+
+	dest = fopen(dst_path, "wb");
+	if (!dest) {
+		goto cleanup;
+	}
+
+	while ((nread = fread(buf, 1, sizeof(buf), source)) > 0) {
+		if (fwrite(buf, 1, nread, dest) != nread) {
+			goto cleanup;
+		}
+	}
+
+	if (!ferror(source)) {
+		ret = 0;
+	}
+
+cleanup:
+	if (dest) {
+		fclose(dest);
+	}
+	if (source) {
+		fclose(source);
+	}
+
+	return ret;
 }
