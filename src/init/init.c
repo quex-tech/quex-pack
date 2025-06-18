@@ -2,11 +2,26 @@
 #include "utils.h"
 #include <string.h>
 #include <sys/mount.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #define SECRET_KEY_TEMPLATE                                                                        \
 	"TD_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+char *locate_bundle() {
+	struct stat st;
+	if (stat("/opt/bundle", &st) == 0) {
+		return "/opt/bundle";
+	}
+
+	if (stat("/dev/dm-0", &st) == 0 &&
+	    mount("/dev/dm-0", "/mnt/bundle", "squashfs", MS_RDONLY, NULL) == 0) {
+		return "/mnt/bundle";
+	}
+
+	return NULL;
+}
 
 int main(void) {
 	int ret;
@@ -36,26 +51,35 @@ int main(void) {
 		return -1;
 	}
 
+	char *bundle_path = locate_bundle();
+	if (bundle_path == NULL) {
+		return -1;
+	}
+
 	char key_env_var[] = SECRET_KEY_TEMPLATE;
 	write_hex(sk, sizeof(sk), key_env_var + strlen("TD_SECRET_KEY="));
-	replace_in_file("/opt/bundle/config.json", SECRET_KEY_TEMPLATE, key_env_var);
+	replace_in_file("/etc/bundle_config.json", SECRET_KEY_TEMPLATE, key_env_var);
 
 	pid_t pid = vfork();
 
 	if (pid == 0) {
-		char *exec_argv[] = {"crun",        "run", "--no-pivot", "--bundle",
-		                     "/opt/bundle", "app", NULL};
+		char *exec_argv[] = {"crun",
+		                     "run",
+		                     "--no-pivot",
+		                     "--bundle",
+		                     bundle_path,
+		                     "--config",
+		                     "/etc/bundle_config.json",
+		                     "app",
+		                     NULL};
 		char *exec_envp[] = {NULL};
 		execve("/usr/bin/crun", exec_argv, exec_envp);
 	} else if (pid > 0) {
 		trace("Waiting for crun to exit...\n");
 		int status;
-		if (waitpid(pid, &status, 0) == 0)
-		{
+		if (waitpid(pid, &status, 0) == 0) {
 			trace("crun exited with status %d\n", status);
-		}
-		else
-		{
+		} else {
 			perror("waitpid failed");
 		}
 	} else {

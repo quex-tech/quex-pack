@@ -46,5 +46,7 @@ root_hash=$(awk '/Root hash:/ {print $3}' "$work/verity.out")
 veritysetup --hash-offset="$data_bytes" verify "$out_img" "$out_img" $root_hash
 
 num_sectors=$((data_bytes / 512))
+header_bytes=512
+hash_start_block=$((data_blocks + (header_bytes + block_size - 1) / block_size))
 
-echo "0 ${num_sectors} verity 1 /dev/vda /dev/vda ${block_size} ${block_size} ${data_blocks} ${data_blocks} sha256 ${root_hash} ${salt}" > $out_table
+echo "0 ${num_sectors} verity 1 /dev/vda /dev/vda ${block_size} ${block_size} ${data_blocks} ${hash_start_block} sha256 ${root_hash} ${salt}" >$out_table

@@ -76,6 +76,7 @@ jq '
 ' "$bundle/config.json" >"$bundle/config.json.new"
 mv "$bundle/config.json.new" "$bundle/config.json"
 rm "$bundle/umoci.json" "$bundle/"*.mtree
+mkdir -p "$bundle/rootfs/proc" "$bundle/rootfs/dev" "$bundle/rootfs/sys"
 find "$bundle" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 
 if [[ $QUEX_KEY_REQUEST_MASK ]]; then
@@ -94,7 +95,8 @@ case "$payload_dest" in
   disk)
     pack-disk.sh $bundle /mnt/out/disk.img $work/verity.table
     table=$(cat $work/verity.table)
-    kernel_cmdline="$kernel_cmdline dm-mod.create=\"quex,,,ro,$table\""
+    kernel_cmdline="$kernel_cmdline dm-mod.create=\"bundle,,,ro,$table\""
+    mkdir -p "$rootfs/mnt/bundle"
     ;;
 
   initramfs|"")
@@ -107,6 +109,8 @@ case "$payload_dest" in
     exit 1
     ;;
 esac
+
+cp "$bundle/config.json" "$rootfs/etc/bundle_config.json"
 
 find "$rootfs" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 

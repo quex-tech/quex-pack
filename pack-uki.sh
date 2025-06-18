@@ -18,6 +18,9 @@ See containers-transports(5) (https://github.com/containers/image/blob/main/docs
 
 Options:
   -h, --help                  display this help text
+  --payload-destination MODE  where to put the payload container: initramfs | disk (default: initramfs)
+                                initramfs: container is unpacked into /opt/bundle of initramfs
+                                disk: container is saved as a separate .img file and mounted using dm-verity
   -o, --output PATH           save resulting EFI file to PATH (default: ukernel.efi)
   --output-rootfs PATH        save initramfs to PATH (default: not saved)
   --output-kernel PATH        save Linux kernel to PATH (default: not saved)

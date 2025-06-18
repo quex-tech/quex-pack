@@ -7,7 +7,7 @@ if [ "$#" -ne 1 ]; then
 fi
 
 version="$1"
-epoch=1747699200
+epoch=$(date -d 2025-06-18 +%s)
 
 docker buildx build \
     --platform=linux/amd64 \
