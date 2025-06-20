@@ -68,7 +68,7 @@ COPY src/linux /tmp/linux-config
 ARG LINUX_VERSION=6.12.33
 ARG LINUX_TAR_XZ_SHA256=c0a575630f2603a20bb0641f8df8f955e46c9d7ac1fae8b54b21316e6b52a254
 ADD --checksum=sha256:$LINUX_TAR_XZ_SHA256 https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${LINUX_VERSION}.tar.xz /tmp/linux/linux.tar.xz
-ARG LINUX_BZIMAGE_SHA256=c0b54e994e161f0ecaad3525526bfdcbdbaa56f9dc3e8b895f43c6c0d66355a2
+ARG LINUX_BZIMAGE_SHA256=75d161a6d3eb70fa523b404dc10e4d8bff5e5167e2253f56692fe969b7df4f87
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -124,7 +124,7 @@ rm -rf /tmp/crun
 EOF
 
 # Build init
-ARG INIT_BIN_SHA256=80acb9b86f16169c628bfd6b31ac569a2255fd88405ba5c18d3fd2dcc68d18f8
+ARG INIT_BIN_SHA256=7165181c294fec2440ca631dbcf85bc243fcc0625b868fc4302a7eb7b025c870
 ARG LIBTDX_ATTEST_SO_SHA256=d26f8ac5df799edc6bce92f7b45c46fe03cc3841ef64e542b7c2e7d44d789820
 COPY src/init /tmp/init
 RUN <<EOF
@@ -136,9 +136,10 @@ make
 sha256sum init vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so
 sha256sum -c <<<"$INIT_BIN_SHA256  init
 $LIBTDX_ATTEST_SO_SHA256  vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so"
-mkdir -p ${ROOTFS_DIR}/usr/lib
+mkdir -p ${ROOTFS_DIR}/usr/lib ${ROOTFS_DIR}/usr/bin
 cp init ${ROOTFS_DIR}/
 cp -a vendor/build/usr/lib/x86_64-linux-gnu ${ROOTFS_DIR}/usr/lib/
+cp vendor/build/usr/bin/mke2fs ${ROOTFS_DIR}/usr/bin/
 rm -rf /tmp/init
 EOF
 
@@ -146,21 +147,21 @@ EOF
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
-for dirname in proc sys mnt/bundle var/data usr/lib/x86_64-linux-gnu; do
+for dirname in proc sys mnt/bundle mnt/storage var/data usr/lib/x86_64-linux-gnu; do
   mkdir -p ${ROOTFS_DIR}/${dirname}
 done
 cp -a /bin ${ROOTFS_DIR}/
 cp -a /lib ${ROOTFS_DIR}/
 cp -a /lib64 ${ROOTFS_DIR}/
 cp -a /usr/lib64 ${ROOTFS_DIR}/usr/
-for libname in ld-linux-x86-64 libc; do
+for libname in ld-linux-x86-64 libc libm; do
   cp -a /usr/lib/x86_64-linux-gnu/${libname}.so.* ${ROOTFS_DIR}/usr/lib/x86_64-linux-gnu/
 done
 EOF
 
 # Finalize rootfs and verify its checksum
 COPY rootfs ${ROOTFS_DIR}
-ARG ROOTFS_CPIO_GZ_SHA256=abf44edaf8e15e953e8829600522092b0e8f1b2822e3c4216b90562435af9025
+ARG ROOTFS_CPIO_GZ_SHA256=0363956f1c817f270d58b6d658d972ba1bfcb8cd34fbcd4dfa54d184cda0a75e
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail

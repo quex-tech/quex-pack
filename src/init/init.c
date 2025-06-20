@@ -1,4 +1,5 @@
 #include "key.h"
+#include "storage.h"
 #include "utils.h"
 #include <string.h>
 #include <sys/mount.h>
@@ -62,6 +63,8 @@ int main(void) {
 	if (copy_file(config_path, "/etc/bundle_config.json") != 0) {
 		return -1;
 	}
+
+	setup_storage(sk, "storage", "storage");
 
 	char key_env_var[] = SECRET_KEY_TEMPLATE;
 	write_hex(sk, sizeof(sk), key_env_var + strlen("TD_SECRET_KEY="));

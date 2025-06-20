@@ -2,3 +2,4 @@
 *.cpio.gz
 .vscode
 *.img
+.vscode/

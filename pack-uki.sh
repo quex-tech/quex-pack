@@ -36,7 +36,7 @@ EOF
 kernel_cmdline=""
 default_kernel_cmdline="console=ttynull"
 kernel_path="/var/linux/bzImage"
-builder_image="quex-base:latest"
+builder_image="quex213/pack-uki:latest"
 payload_destination="initramfs"
 output_path="ukernel.efi"
 output_disk_path="disk.img"

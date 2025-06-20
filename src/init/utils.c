@@ -1,10 +1,14 @@
 #include "utils.h"
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/fs.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 int load_binary(const char *path, void *out, size_t size) {
@@ -56,7 +60,7 @@ int init_socket(uint16_t port) {
 	return sock;
 }
 
-void write_hex(uint8_t *bytes, size_t bytes_len, char *dest) {
+void write_hex(const uint8_t *bytes, size_t bytes_len, char *dest) {
 	for (size_t i = 0; i < bytes_len; i++) {
 		snprintf(dest + i * 2, 3, "%02x", bytes[i]);
 	}
@@ -189,4 +193,37 @@ cleanup:
 	}
 
 	return ret;
+}
+
+int zeroize_device(const char *dev_path, uint64_t len) {
+	int err = 0;
+
+	int fd = open(dev_path, O_RDWR | O_SYNC | O_CLOEXEC);
+	if (fd < 0) {
+		err = -errno;
+		trace("open %s failed: %s\n", dev_path, strerror(errno));
+		goto cleanup;
+	}
+
+	struct {
+		uint64_t start;
+		uint64_t length;
+	} range = {0, len};
+
+	if (ioctl(fd, BLKZEROOUT, &range) == -1) {
+		err = -errno;
+		trace("ioctl(BLKZEROOT) %s failed: %s\n", dev_path, strerror(errno));
+		goto cleanup;
+	}
+
+	if (fsync(fd) == -1) {
+		err = -errno;
+		goto cleanup;
+	}
+
+cleanup:
+	if (fd >= 0) {
+		close(fd);
+	}
+	return err;
 }

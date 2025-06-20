@@ -51,6 +51,15 @@ jq '
         }]
         else .
       end
+  | if (any(.mounts[]?; .destination == "/mnt") | not)
+      then .mounts += [{
+        "destination": "/mnt",
+        "type":        "bind",
+        "source":      "/mnt/storage",
+        "options":     ["rbind","rw","nosuid","nodev"]
+      }]
+      else .
+    end
   | if (any(.linux.devices[]?; .path == "/dev/tdx_guest") | not)
       then .linux.devices += [{
         "path":      "/dev/tdx_guest",
@@ -73,7 +82,7 @@ jq '
       }]
       else .
     end
-' "$bundle/config.json" >"$bundle/config.json.new"
+' -c "$bundle/config.json" >"$bundle/config.json.new"
 mv "$bundle/config.json.new" "$bundle/config.json"
 rm "$bundle/umoci.json" "$bundle/"*.mtree
 mkdir -p "$bundle/rootfs/proc" "$bundle/rootfs/dev" "$bundle/rootfs/sys"

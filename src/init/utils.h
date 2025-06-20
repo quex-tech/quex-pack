@@ -13,11 +13,12 @@
 
 int load_binary(const char *path, void *out_struct, size_t size);
 int init_socket(uint16_t port);
-void write_hex(uint8_t *bytes, size_t bytes_len, char *dest);
+void write_hex(const uint8_t *bytes, size_t bytes_len, char *dest);
 int write_hex_to_file(const char *filename, uint8_t *bytes, size_t bytes_len);
 int read_hex(const char *hex, uint8_t *dest, size_t dest_len);
 int read_hex_from_env(const char *env_var, uint8_t *dest, size_t dest_len);
 int replace_in_file(const char *filename, const char *target, const char *replacement);
 int copy_file(const char *src_path, const char *dst_path);
+int zeroize_device(const char *dev_path, uint64_t len);
 
 #endif
