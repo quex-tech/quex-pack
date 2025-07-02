@@ -64,7 +64,7 @@ int main(void) {
 		return -1;
 	}
 
-	setup_storage(sk, "storage", "storage");
+	setup_storage(sk, "storage", "/mnt/storage");
 
 	char key_env_var[] = SECRET_KEY_TEMPLATE;
 	write_hex(sk, sizeof(sk), key_env_var + strlen("TD_SECRET_KEY="));

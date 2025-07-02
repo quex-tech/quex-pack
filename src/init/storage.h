@@ -3,6 +3,6 @@
 
 #include <stdint.h>
 
-int setup_storage(const uint8_t sk[32], const char *dev_path, const char *name);
+int setup_storage(const uint8_t secret_key[32], const char *serial, const char *mount_point);
 
 #endif

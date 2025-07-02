@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #define SECTOR_SIZE 512
+#define BLOCK_SIZE 512
 #define SUPERBLOCK_SIZE 4096
 #define JOURNAL_SECTORS 1024
 #define SUPERBLOCK_IS_INVALID 1
@@ -19,16 +20,18 @@ struct target_params {
 	const char *devpath;
 	const char *key_hex;
 	uint32_t journal_sectors;
+	uint32_t block_size;
 };
 
 static int add_integrity_target(struct dm_task *dmt, struct target_params *p) {
 	char params[512];
 	snprintf(params, sizeof(params),
-	         "%s 0 - J 4 "
+	         "%s 0 - J 5 "
 	         "journal_sectors:%u "
 	         "internal_hash:hmac(sha256):%s "
+	         "block_size:%d "
 	         "fix_hmac fix_padding",
-	         p->devpath, p->journal_sectors, p->key_hex);
+	         p->devpath, p->journal_sectors, p->key_hex, p->block_size);
 
 	int ok = dm_task_add_target(dmt, 0, p->size, "integrity", params);
 	if (!ok) {
@@ -186,18 +189,54 @@ int validate_superblock(const char *dev_path) {
 		return -err;
 	}
 
+	char sb_hex[129] = {0};
+	write_hex(sb, 64, sb_hex);
+	trace("Superblock: %s\n", sb_hex);
+
 	if (memcmp(sb, "integrt", 8) != 0) {
 		trace("Invalid magic\n");
 		return SUPERBLOCK_IS_INVALID;
 	}
 
-	if (sb[8] != 5) {
-		trace("Invalid version: %d\n", sb[8]);
+	uint8_t version = sb[8];
+	if (version != 5) {
+		trace("Invalid version: %d\n", version);
 		return SUPERBLOCK_IS_INVALID;
 	}
 
-	if (le16toh(*(uint16_t *)(sb + 10)) != 32) {
-		trace("Invalid tag size: %d\n", le16toh(*(uint16_t *)(sb + 10)));
+	uint8_t log2_interleave_sectors = sb[9];
+	if (log2_interleave_sectors != 0x0f) {
+		trace("Invalid log2_interleave_sectors: %d\n", log2_interleave_sectors);
+		return SUPERBLOCK_IS_INVALID;
+	}
+
+	uint16_t tag_size = le16toh(*(uint16_t *)(sb + 10));
+	if (tag_size != 32) {
+		trace("Invalid tag size: %d\n", tag_size);
+		return SUPERBLOCK_IS_INVALID;
+	}
+
+	uint16_t flags = le16toh(*(uint16_t *)(sb + 24));
+	if (flags != 0x18) {
+		trace("Invalid flags: %d\n", flags);
+		return SUPERBLOCK_IS_INVALID;
+	}
+
+	uint8_t log2_sectors_per_block = sb[28];
+	if (log2_sectors_per_block != 0) {
+		trace("Invalid log2_sectors_per_block: %d\n", log2_sectors_per_block);
+		return SUPERBLOCK_IS_INVALID;
+	}
+
+	uint16_t pad = *(uint16_t *)(sb + 30);
+	if (pad != 0) {
+		trace("Non-zero pad\n");
+		return SUPERBLOCK_IS_INVALID;
+	}
+
+	uint64_t pad2 = *(uint64_t *)(sb + 40);
+	if (pad2 != 0) {
+		trace("Non-zero pad2\n");
 		return SUPERBLOCK_IS_INVALID;
 	}
 
@@ -222,7 +261,7 @@ int setup_integrity(const char *mapper_name, const char *dev_path, const uint8_t
 		}
 	}
 
-	struct target_params params = {1, dev_path, key_hex, JOURNAL_SECTORS};
+	struct target_params params = {1, dev_path, key_hex, JOURNAL_SECTORS, BLOCK_SIZE};
 
 	int err = create_device(mapper_name, &params);
 	if (err) {

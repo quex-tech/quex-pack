@@ -124,7 +124,8 @@ rm -rf /tmp/crun
 EOF
 
 # Build init
-ARG INIT_BIN_SHA256=7165181c294fec2440ca631dbcf85bc243fcc0625b868fc4302a7eb7b025c870
+ARG INIT_CFLAGS=""
+ARG INIT_BIN_SHA256=9f0152a4064ade5def1a2afda5ce79487f729555499b98bcc8085ad51dd389ca
 ARG LIBTDX_ATTEST_SO_SHA256=d26f8ac5df799edc6bce92f7b45c46fe03cc3841ef64e542b7c2e7d44d789820
 COPY src/init /tmp/init
 RUN <<EOF
@@ -132,7 +133,7 @@ RUN <<EOF
 set -euo pipefail
 cd /tmp/init
 make clean
-make
+make CFLAGS="$INIT_CFLAGS"
 sha256sum init vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so
 sha256sum -c <<<"$INIT_BIN_SHA256  init
 $LIBTDX_ATTEST_SO_SHA256  vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so"
@@ -161,7 +162,7 @@ EOF
 
 # Finalize rootfs and verify its checksum
 COPY rootfs ${ROOTFS_DIR}
-ARG ROOTFS_CPIO_GZ_SHA256=0363956f1c817f270d58b6d658d972ba1bfcb8cd34fbcd4dfa54d184cda0a75e
+ARG ROOTFS_CPIO_GZ_SHA256=68abaeb14706df1d63c6e26a319b99267058891f69c7785b00579208e4386e98
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail

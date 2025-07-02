@@ -13,6 +13,13 @@
 #include <tdx_attest.h>
 #include <unistd.h>
 
+#ifdef SKIP_KEY
+int get_sk(uint8_t sk[32]) {
+	memset(sk, 1, 32);
+	return 0;
+}
+#else
+
 #define PORT 24516
 #define MASK_ENV_VAR "quex_key_request_mask"
 #define VAULT_MRENCLAVE_ENV_VAR "quex_vault_mrenclave"
@@ -386,3 +393,5 @@ cleanup:
 	free_ecc_context(&ctx);
 	return ret;
 }
+
+#endif

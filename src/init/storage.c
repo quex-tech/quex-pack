@@ -24,6 +24,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#define MAPPER_NAME "storage"
+
 static int find_disk_by_serial(const char *serial, char *dev_path, size_t dev_path_len) {
 	trace("Searching for a disk with serial %s\n", serial);
 
@@ -42,6 +44,10 @@ static int find_disk_by_serial(const char *serial, char *dev_path, size_t dev_pa
 	char read_serial[256] = {0};
 
 	while ((entry = readdir(dir))) {
+		if (entry->d_name[0] == '.') {
+			continue;
+		}
+
 		snprintf(path, sizeof(path), "/sys/block/%s/serial", entry->d_name);
 
 		FILE *fp = fopen(path, "r");
@@ -126,25 +132,24 @@ static int mkfs_ext4(const char *dev) {
 	return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
 }
 
-int setup_storage(const uint8_t secret_key[32], const char *serial, const char *mapper_name) {
+int setup_storage(const uint8_t secret_key[32], const char *serial, const char *mount_point) {
 	trace("Setting up storage...\n");
 	int err = 0;
 
-	char dev_path[64];
+	char dev_path[64] = {0};
 	err = find_disk_by_serial(serial, dev_path, sizeof(dev_path));
 	if (err) {
 		trace("Cannot find disk by serial %s: %d\n", serial, err);
 		return err;
 	}
 
-	err = setup_integrity(mapper_name, dev_path, secret_key);
+	err = setup_integrity(MAPPER_NAME, dev_path, secret_key);
 	if (err) {
-		trace("Cannot map device %s to %s: %d\n", dev_path, mapper_name, err);
+		trace("Cannot map device %s to %s: %d\n", dev_path, MAPPER_NAME, err);
 		return err;
 	}
 
-	char mapped_dev_path[64] = {0};
-	snprintf(mapped_dev_path, sizeof(mapped_dev_path), "/dev/mapper/%s", mapper_name);
+	char *mapped_dev_path = "/dev/mapper/" MAPPER_NAME;
 
 	if (!device_is_ext4(mapped_dev_path)) {
 		trace("No ext4. Formatting...\n");
@@ -157,7 +162,7 @@ int setup_storage(const uint8_t secret_key[32], const char *serial, const char *
 		trace("Already has ext4\n");
 	}
 
-	int mount_err = mount(mapped_dev_path, "/mnt/storage", "ext4", 0, NULL);
+	int mount_err = mount(mapped_dev_path, mount_point, "ext4", 0, NULL);
 	if (mount_err == -1) {
 		err = errno;
 		trace("mount %s failed: %s\n", mapped_dev_path, strerror(err));
