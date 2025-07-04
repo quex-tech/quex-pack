@@ -16,9 +16,55 @@
 #define JOURNAL_SECTORS 1024
 #define SUPERBLOCK_IS_INVALID 1
 
+struct superblock {
+	uint8_t magic[8];
+	uint8_t version;
+	uint8_t log2_interleave_sectors;
+	uint16_t integrity_tag_size;
+	uint32_t journal_sections;
+	uint64_t provided_data_sectors;
+	uint32_t flags;
+	uint8_t log2_sectors_per_block;
+	uint8_t log2_blocks_per_bitmap_bit;
+	uint8_t pad[2];
+	uint64_t recalc_sector;
+	uint8_t pad2[8];
+	uint8_t salt[16];
+};
+
+static void parse_superblock(uint8_t buf[SUPERBLOCK_SIZE], struct superblock *sb) {
+	memcpy(sb->magic, buf, 8);
+	sb->version = buf[8];
+	sb->log2_interleave_sectors = buf[9];
+	sb->integrity_tag_size = le16toh(*(uint16_t *)(buf + 10));
+	sb->journal_sections = le32toh(*(uint32_t *)(buf + 12));
+	sb->provided_data_sectors = le64toh(*(uint16_t *)(buf + 16));
+	sb->flags = le32toh(*(uint32_t *)(buf + 24));
+	sb->log2_sectors_per_block = buf[28];
+	sb->log2_blocks_per_bitmap_bit = buf[29];
+	memcpy(sb->pad, buf + 30, 2);
+	sb->recalc_sector = le64toh(*(uint64_t *)(buf + 32));
+	memcpy(sb->pad2, buf + 40, 8);
+	memcpy(sb->salt, buf + 48, 16);
+}
+
+static const struct superblock expected_sb = {.magic = "integrt",
+                                              .version = 5,
+                                              .log2_interleave_sectors = 0x0f,
+                                              .integrity_tag_size = 32,
+                                              .journal_sections = 0,
+                                              .provided_data_sectors = 0,
+                                              .flags = 0x18,
+                                              .log2_sectors_per_block = 0,
+                                              .log2_blocks_per_bitmap_bit = 0,
+                                              .pad = {0},
+                                              .recalc_sector = 0,
+                                              .pad2 = {0},
+                                              .salt = {0}};
+
 static int validate_superblock(const char *dev_path) {
 	int err = 0;
-	uint8_t sb[SUPERBLOCK_SIZE];
+	uint8_t raw_sb[SUPERBLOCK_SIZE];
 	int fd = open(dev_path, O_RDONLY | O_CLOEXEC);
 	if (fd < 0) {
 		err = errno;
@@ -26,7 +72,7 @@ static int validate_superblock(const char *dev_path) {
 		return -err;
 	}
 
-	ssize_t n = pread(fd, sb, SUPERBLOCK_SIZE, 0);
+	ssize_t n = pread(fd, raw_sb, SUPERBLOCK_SIZE, 0);
 	err = errno;
 	close(fd);
 	if (n != SUPERBLOCK_SIZE) {
@@ -34,53 +80,51 @@ static int validate_superblock(const char *dev_path) {
 		return -err;
 	}
 
+#ifdef ENABLE_TRACE
 	char sb_hex[129] = {0};
-	write_hex(sb, 64, sb_hex);
+	write_hex(raw_sb, 64, sb_hex);
 	trace("Superblock: %s\n", sb_hex);
+#endif
 
-	if (memcmp(sb, "integrt", 8) != 0) {
+	struct superblock sb = {0};
+	parse_superblock(raw_sb, &sb);
+
+	if (memcmp(sb.magic, expected_sb.magic, sizeof(expected_sb.magic)) != 0) {
 		trace("Invalid magic\n");
 		return SUPERBLOCK_IS_INVALID;
 	}
 
-	uint8_t version = sb[8];
-	if (version != 5) {
-		trace("Invalid version: %d\n", version);
+	if (sb.version != expected_sb.version) {
+		trace("Invalid version: %d\n", sb.version);
 		return SUPERBLOCK_IS_INVALID;
 	}
 
-	uint8_t log2_interleave_sectors = sb[9];
-	if (log2_interleave_sectors != 0x0f) {
-		trace("Invalid log2_interleave_sectors: %d\n", log2_interleave_sectors);
+	if (sb.log2_interleave_sectors != expected_sb.log2_interleave_sectors) {
+		trace("Invalid log2_interleave_sectors: %d\n", sb.log2_interleave_sectors);
 		return SUPERBLOCK_IS_INVALID;
 	}
 
-	uint16_t tag_size = le16toh(*(uint16_t *)(sb + 10));
-	if (tag_size != 32) {
-		trace("Invalid tag size: %d\n", tag_size);
+	if (sb.integrity_tag_size != expected_sb.integrity_tag_size) {
+		trace("Invalid tag size: %d\n", sb.integrity_tag_size);
 		return SUPERBLOCK_IS_INVALID;
 	}
 
-	uint16_t flags = le16toh(*(uint16_t *)(sb + 24));
-	if (flags != 0x18) {
-		trace("Invalid flags: %d\n", flags);
+	if (sb.flags != expected_sb.flags) {
+		trace("Invalid flags: %d\n", sb.flags);
 		return SUPERBLOCK_IS_INVALID;
 	}
 
-	uint8_t log2_sectors_per_block = sb[28];
-	if (log2_sectors_per_block != 0) {
-		trace("Invalid log2_sectors_per_block: %d\n", log2_sectors_per_block);
+	if (sb.log2_sectors_per_block != expected_sb.log2_sectors_per_block) {
+		trace("Invalid log2_sectors_per_block: %d\n", sb.log2_sectors_per_block);
 		return SUPERBLOCK_IS_INVALID;
 	}
 
-	uint16_t pad = *(uint16_t *)(sb + 30);
-	if (pad != 0) {
+	if (memcmp(sb.pad, expected_sb.pad, sizeof(expected_sb.pad)) != 0) {
 		trace("Non-zero pad\n");
 		return SUPERBLOCK_IS_INVALID;
 	}
 
-	uint64_t pad2 = *(uint64_t *)(sb + 40);
-	if (pad2 != 0) {
+	if (memcmp(sb.pad2, expected_sb.pad2, sizeof(expected_sb.pad2)) != 0) {
 		trace("Non-zero pad2\n");
 		return SUPERBLOCK_IS_INVALID;
 	}
