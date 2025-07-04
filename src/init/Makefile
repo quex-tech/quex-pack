@@ -12,7 +12,7 @@ VENDOR_DOWNLOADS_DIR := $(VENDOR_DIR)/downloads
 VENDOR_SRC_DIR := $(VENDOR_DIR)/src
 VENDOR_OUT_DIR := $(VENDOR_DIR)/build
 
-SRCS := init.c key.c report.c quote.c der.c ec.c storage.c integrity.c utils.c
+SRCS := init.c key.c report.c quote.c der.c ec.c storage.c integrity.c dm.c utils.c
 OBJS := $(SRCS:.c=.o)
 DEPS := $(SRCS:.c=.d)
 
