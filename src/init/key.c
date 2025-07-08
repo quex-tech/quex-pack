@@ -204,6 +204,9 @@ int get_sk(uint8_t sk[32]) {
 		goto cleanup;
 	}
 
+	mbedtls_mpi sk_mpi;
+	mbedtls_mpi_init(&sk_mpi);
+
 	td_key_request_t key_request;
 	if ((ret = load_binary(MASK_PATH, &key_request.mask, sizeof(td_key_request_mask_t))) != 0) {
 		trace("Could not load %s: %d\n", MASK_PATH, ret);
@@ -254,20 +257,6 @@ int get_sk(uint8_t sk[32]) {
 		         tdx_att_get_report(&report_data, (tdx_report_t *)&key_request.tdreport)) !=
 		    TDX_ATTEST_SUCCESS) {
 			trace("tdx_att_get_report failed: %d\n", ret);
-			goto cleanup_iteration;
-		}
-
-		tdx_uuid_t selected_att_key_id = {0};
-		uint8_t *p_quote_buf = NULL;
-		uint32_t quote_size = 0;
-		if ((ret = tdx_att_get_quote(&report_data, NULL, 0, &selected_att_key_id,
-		                             &p_quote_buf, &quote_size, 0)) != TDX_ATTEST_SUCCESS) {
-			trace("tdx_att_get_quote failed: %d\n", ret);
-			goto cleanup_iteration;
-		}
-
-		if ((ret = write_hex_to_file("/var/data/quote.txt", p_quote_buf, quote_size))) {
-			trace("write_hex_to_file failed: %d\n", ret);
 			goto cleanup_iteration;
 		}
 
@@ -333,8 +322,41 @@ int get_sk(uint8_t sk[32]) {
 		close(client);
 	}
 
+	tdx_report_data_t report_data = {0};
+
+	if ((ret = read_raw_sk(sk, &sk_mpi)) != 0) {
+		trace("read_raw_sk failed: %d\n", ret);
+		goto cleanup;
+	}
+
+	if ((ret = gen_report_data(&ctx, &sk_mpi, &report_data)) != 0) {
+		trace("gen_report_data failed: %d\n", ret);
+		goto cleanup;
+	}
+
+	if ((ret = tdx_att_get_report(&report_data, (tdx_report_t *)&key_request.tdreport)) !=
+	    TDX_ATTEST_SUCCESS) {
+		trace("tdx_att_get_report failed: %d\n", ret);
+		goto cleanup;
+	}
+
+	tdx_uuid_t selected_att_key_id = {0};
+	uint8_t *p_quote_buf = NULL;
+	uint32_t quote_size = 0;
+	if ((ret = tdx_att_get_quote(&report_data, NULL, 0, &selected_att_key_id, &p_quote_buf,
+	                             &quote_size, 0)) != TDX_ATTEST_SUCCESS) {
+		trace("tdx_att_get_quote failed: %d\n", ret);
+		goto cleanup;
+	}
+
+	if ((ret = write_hex_to_file("/var/data/quote.txt", p_quote_buf, quote_size))) {
+		trace("write_hex_to_file failed: %d\n", ret);
+		goto cleanup;
+	}
+
 	ret = 0;
 cleanup:
+	mbedtls_mpi_free(&sk_mpi);
 	if (sock >= 0) {
 		close(sock);
 	}

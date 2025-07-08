@@ -36,3 +36,14 @@ int read_raw_sig(const uint8_t raw[64], mbedtls_mpi *r, mbedtls_mpi *s) {
 
 	return 0;
 }
+
+int read_raw_sk(const uint8_t raw[32], mbedtls_mpi *sk) {
+	int ret;
+
+	if ((ret = mbedtls_mpi_read_binary(sk, raw, 32)) != 0) {
+		trace("mbedtls_mpi_read_binary(sk) failed: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
