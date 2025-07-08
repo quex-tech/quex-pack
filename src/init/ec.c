@@ -18,6 +18,13 @@ int write_raw_pk(mbedtls_ecp_group *grp, mbedtls_ecp_point *pk, uint8_t out[64])
 		return ret;
 	}
 	memcpy(out, uncompressed + 1, 64);
+
+#ifdef ENABLE_TRACE
+	char pk_hex[129] = {0};
+	write_hex(out, 64, pk_hex);
+	trace("PK: %s\n", pk_hex);
+#endif
+
 	return 0;
 }
 

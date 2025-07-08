@@ -75,6 +75,37 @@ cleanup:
 	return ret;
 }
 
+static int mk_report_data(ecc_context *ctx, const uint8_t raw_sk[32],
+                          tdx_report_data_t *report_data) {
+	mbedtls_mpi sk;
+	mbedtls_ecp_point pk;
+	int ret = -1;
+	mbedtls_mpi_init(&sk);
+	mbedtls_ecp_point_init(&pk);
+
+	if ((ret = read_raw_sk(raw_sk, &sk)) != 0) {
+		trace("read_raw_sk failed: %d\n", ret);
+		goto cleanup;
+	}
+
+	if ((ret = mbedtls_ecp_mul(&(ctx->grp), &pk, &sk, &ctx->grp.G, mbedtls_ctr_drbg_random,
+	                           &(ctx->drbg))) != 0) {
+		trace("mbedtls_ecp_mul failed: %d\n", ret);
+		goto cleanup;
+	}
+
+	if ((ret = write_raw_pk(&(ctx->grp), &pk, report_data->d)) != 0) {
+		trace("mbedtls_ecp_point_write_binary failed: %d\n", ret);
+		goto cleanup;
+	}
+
+	ret = 0;
+cleanup:
+	mbedtls_ecp_point_free(&pk);
+	mbedtls_mpi_free(&sk);
+	return ret;
+}
+
 static int decrypt_sk(ecc_context *ctx, mbedtls_mpi *ephemeral_sk, uint8_t ciphertext[QUEX_CT_LEN],
                       uint8_t sk[32]) {
 	int ret = -1;
@@ -204,9 +235,6 @@ int get_sk(uint8_t sk[32]) {
 		goto cleanup;
 	}
 
-	mbedtls_mpi sk_mpi;
-	mbedtls_mpi_init(&sk_mpi);
-
 	td_key_request_t key_request;
 	if ((ret = load_binary(MASK_PATH, &key_request.mask, sizeof(td_key_request_mask_t))) != 0) {
 		trace("Could not load %s: %d\n", MASK_PATH, ret);
@@ -323,14 +351,8 @@ int get_sk(uint8_t sk[32]) {
 	}
 
 	tdx_report_data_t report_data = {0};
-
-	if ((ret = read_raw_sk(sk, &sk_mpi)) != 0) {
-		trace("read_raw_sk failed: %d\n", ret);
-		goto cleanup;
-	}
-
-	if ((ret = gen_report_data(&ctx, &sk_mpi, &report_data)) != 0) {
-		trace("gen_report_data failed: %d\n", ret);
+	if ((ret = mk_report_data(&ctx, sk, &report_data)) != 0) {
+		trace("mk_report_data failed: %d\n", ret);
 		goto cleanup;
 	}
 
@@ -356,7 +378,6 @@ int get_sk(uint8_t sk[32]) {
 
 	ret = 0;
 cleanup:
-	mbedtls_mpi_free(&sk_mpi);
 	if (sock >= 0) {
 		close(sock);
 	}
