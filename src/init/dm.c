@@ -12,8 +12,14 @@ static int run_simple_task(const char *name, int type) {
 		goto cleanup;
 	}
 
-	dm_task_set_name(dmt, name);
-	int ok = dm_task_run(dmt);
+	int ok = dm_task_set_name(dmt, name);
+	if (!ok) {
+		trace("dm_task_set_name failed\n");
+		err = -1;
+		goto cleanup;
+	}
+
+	ok = dm_task_run(dmt);
 	if (!ok) {
 		trace("dm_task_run failed\n");
 		err = -1;
@@ -37,14 +43,25 @@ int create_device(const char *name, const struct dm_target *target) {
 		goto cleanup;
 	}
 
-	dm_task_set_name(dmt, name);
-	dm_task_set_add_node(dmt, DM_ADD_NODE_ON_CREATE);
+	int ok = dm_task_set_name(dmt, name);
+	if (!ok) {
+		trace("dm_task_set_name failed\n");
+		err = -1;
+		goto cleanup;
+	}
 
-	int ok =
-	    dm_task_add_target(dmt, target->start, target->size, target->ttype, target->params);
+	ok = dm_task_set_add_node(dmt, DM_ADD_NODE_ON_CREATE);
+	if (!ok) {
+		trace("dm_task_set_add_node failed\n");
+		err = -1;
+		goto cleanup;
+	}
+
+	ok = dm_task_add_target(dmt, target->start, target->size, target->ttype, target->params);
 	if (!ok) {
 		trace("dm_task_add_target failed\n");
-		return -1;
+		err = -1;
+		goto cleanup;
 	}
 
 	ok = dm_task_run(dmt);
@@ -71,8 +88,14 @@ int get_device_status(const char *name, struct dm_target *target) {
 		goto cleanup;
 	}
 
-	dm_task_set_name(dmt, name);
-	int ok = dm_task_run(dmt);
+	int ok = dm_task_set_name(dmt, name);
+	if (!ok) {
+		trace("dm_task_set_name failed\n");
+		err = -1;
+		goto cleanup;
+	}
+
+	ok = dm_task_run(dmt);
 	if (!ok) {
 		trace("dm_task_run failed\n");
 		err = -1;
@@ -103,16 +126,23 @@ int reload_table(const char *name, const struct dm_target *target) {
 		goto cleanup;
 	}
 
-	dm_task_set_name(dmt, name);
-	int ok =
-	    dm_task_add_target(dmt, target->start, target->size, target->ttype, target->params);
+	int ok = dm_task_set_name(dmt, name);
+	if (!ok) {
+		trace("dm_task_set_name failed\n");
+		err = -1;
+		goto cleanup;
+	}
+
+	ok = dm_task_add_target(dmt, target->start, target->size, target->ttype, target->params);
 	if (!ok) {
 		trace("dm_task_add_target failed\n");
-		return -1;
+		err = -1;
+		goto cleanup;
 	}
 
 	ok = dm_task_run(dmt);
 	if (!ok) {
+		trace("dm_task_run failed\n");
 		err = -1;
 		goto cleanup;
 	}
@@ -136,3 +166,5 @@ int update_device_nodes(const char *name) {
 
 	return 0;
 }
+
+int remove_device(const char *name) { return run_simple_task(name, DM_DEVICE_REMOVE); }

@@ -89,7 +89,7 @@ mkdir -p "$bundle/rootfs/proc" "$bundle/rootfs/dev" "$bundle/rootfs/sys"
 find "$bundle" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 
 payload_dest=${QUEX_PAYLOAD_DESTINATION:-initramfs}
-kernel_cmdline="${QUEX_KERNEL_CMDLINE} quex_key_request_mask=$QUEX_KEY_REQUEST_MASK quex_vault_mrenclave=$QUEX_VAULT_MRENCLAVE"
+kernel_cmdline="${QUEX_KERNEL_CMDLINE}"
 
 case "$payload_dest" in
 disk)
@@ -116,6 +116,8 @@ initramfs | "")
   exit 1
   ;;
 esac
+
+kernel_cmdline="$kernel_cmdline -- key_request_mask=$QUEX_KEY_REQUEST_MASK vault_mrenclave=$QUEX_VAULT_MRENCLAVE"
 
 cp $QUEX_KERNEL_PATH /mnt/out/bzImage
 

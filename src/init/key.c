@@ -21,8 +21,6 @@ int get_sk(uint8_t sk[32]) {
 #else
 
 #define PORT 24516
-#define MASK_ENV_VAR "quex_key_request_mask"
-#define VAULT_MRENCLAVE_ENV_VAR "quex_vault_mrenclave"
 #define ROOT_PEM_PATH "/etc/root.pem"
 #define ROOT_PEM_SIZE 964
 
@@ -232,7 +230,7 @@ static int compare_masked(sgx_report2_t *first, sgx_report2_t *second,
 	return memcmp(&first_masked, &second_masked, sizeof(sgx_report2_t));
 }
 
-int get_sk(uint8_t sk[32]) {
+int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_mrenclave_hex) {
 	int ret = -1;
 	int sock = -1;
 
@@ -243,16 +241,16 @@ int get_sk(uint8_t sk[32]) {
 	}
 
 	td_key_request_t key_request;
-	if ((ret = read_hex_from_env(MASK_ENV_VAR, (uint8_t *)&key_request.mask,
-	                             sizeof(td_key_request_mask_t))) != 0) {
-		trace("Could not read %s: %d\n", MASK_ENV_VAR, ret);
+	if ((ret = read_hex(key_request_mask_hex, (uint8_t *)&key_request.mask,
+	                    sizeof(td_key_request_mask_t))) != 0) {
+		trace("Could not read key request mask %s: %d\n", key_request_mask_hex, ret);
 		goto cleanup;
 	}
 
 	sgx_measurement_t mr_enclave;
-	if ((ret = read_hex_from_env(VAULT_MRENCLAVE_ENV_VAR, (uint8_t *)&mr_enclave,
-	                             sizeof(sgx_measurement_t))) != 0) {
-		trace("Could not read %s: %d\n", VAULT_MRENCLAVE_ENV_VAR, ret);
+	if ((ret = read_hex(vault_mrenclave_hex, (uint8_t *)&mr_enclave,
+	                    sizeof(sgx_measurement_t))) != 0) {
+		trace("Could not read vault mr_enclave %s: %d\n", vault_mrenclave_hex, ret);
 		goto cleanup;
 	}
 

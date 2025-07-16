@@ -165,23 +165,33 @@ cleanup:
 	return err;
 }
 
-int setup_integrity(const char *mapper_name, const char *dev_path, const uint8_t key[32]) {
-	char key_hex[65];
-	write_hex(key, 32, key_hex);
-
-	int validate_superblock_err = validate_superblock(dev_path);
-	if (validate_superblock_err && validate_superblock_err != SUPERBLOCK_IS_INVALID) {
-		trace("Cannot validate superblock\n");
+int test_read(const char *dev_path) {
+	int fd = open(dev_path, O_RDONLY | O_CLOEXEC);
+	if (fd < 0) {
+		trace("Cannot open %s: %s\n", dev_path, strerror(errno));
 		return -1;
 	}
 
-	if (validate_superblock_err == SUPERBLOCK_IS_INVALID) {
-		trace("Superblock is invalid. Zeroizing it...\n");
-		if (zeroize_device(dev_path, SUPERBLOCK_SIZE) != 0) {
-			trace("zeroize_device %s failed\n", dev_path);
-			return -1;
-		}
+	char buffer[4096];
+	ssize_t bytes_read = read(fd, buffer, sizeof(buffer));
+	int read_errno = errno;
+	close(fd);
+
+	if (bytes_read == sizeof(buffer)) {
+		return 0;
 	}
+
+	if (bytes_read < 0) {
+		trace("Cannot read from %s: %s\n", dev_path, strerror(read_errno));
+		return -read_errno;
+	}
+
+	return -1;
+}
+
+static int map_device(const char *mapper_name, const char *dev_path, const uint8_t key[32]) {
+	char key_hex[65];
+	write_hex(key, 32, key_hex);
 
 	char target_params[512] = {0};
 	snprintf(target_params, sizeof(target_params),
@@ -232,16 +242,82 @@ int setup_integrity(const char *mapper_name, const char *dev_path, const uint8_t
 		return -1;
 	}
 
-	if (validate_superblock_err == SUPERBLOCK_IS_INVALID) {
-		trace("Zeroizing the whole device...\n");
-		char mapped_device_path[64];
-		snprintf(mapped_device_path, sizeof(mapped_device_path), "/dev/mapper/%s",
-		         mapper_name);
-		if (zeroize_device(mapped_device_path, provided * SECTOR_SIZE) != 0) {
-			trace("zeroize_device %s failed\n", mapped_device_path);
-			return -1;
-		}
+	return 0;
+}
+
+static int init_integrity(const char *mapper_name, const char *dev_path, const uint8_t key[32]) {
+	trace("Initializing integrity...\n");
+
+	if (zeroize_device(dev_path, SUPERBLOCK_SIZE) != 0) {
+		trace("zeroize_device %s failed\n", dev_path);
+		return -1;
+	}
+
+	int err = map_device(mapper_name, dev_path, key);
+	if (err) {
+		trace("map_device failed\n");
+		return -1;
+	}
+
+	trace("Zeroizing the whole device...\n");
+
+	uint64_t provided = 0;
+	err = get_provided_sectors(mapper_name, &provided);
+	if (err) {
+		trace("get_provided_sectors failed\n");
+		return -1;
+	}
+
+	char mapped_dev_path[64];
+	snprintf(mapped_dev_path, sizeof(mapped_dev_path), "/dev/mapper/%s", mapper_name);
+
+	if (zeroize_device(mapped_dev_path, provided * SECTOR_SIZE) != 0) {
+		trace("zeroize_device %s failed\n", mapped_dev_path);
+		return -1;
 	}
 
 	return 0;
+}
+
+static int restore_integrity(const char *mapper_name, const char *dev_path, const uint8_t key[32]) {
+	trace("Restoring integrity...\n");
+
+	int err = map_device(mapper_name, dev_path, key);
+	if (err) {
+		trace("map_device failed\n");
+		return -1;
+	}
+
+	char mapped_dev_path[64];
+	snprintf(mapped_dev_path, sizeof(mapped_dev_path), "/dev/mapper/%s", mapper_name);
+
+	err = test_read(mapped_dev_path);
+	if (err) {
+		trace("Read test failed: %d\n", err);
+
+		err = remove_device(mapper_name);
+		if (err) {
+			trace("remove_device failed: %d\n", err);
+			return -1;
+		}
+
+		return init_integrity(mapper_name, dev_path, key);
+	}
+
+	return 0;
+}
+
+int setup_integrity(const char *mapper_name, const char *dev_path, const uint8_t key[32]) {
+	int validate_superblock_err = validate_superblock(dev_path);
+	if (validate_superblock_err && validate_superblock_err != SUPERBLOCK_IS_INVALID) {
+		trace("Cannot validate superblock\n");
+		return -1;
+	}
+
+	if (validate_superblock_err == SUPERBLOCK_IS_INVALID) {
+		trace("Superblock is invalid. Zeroizing it...\n");
+		return init_integrity(mapper_name, dev_path, key);
+	}
+
+	return restore_integrity(mapper_name, dev_path, key);
 }
