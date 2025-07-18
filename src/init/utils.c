@@ -107,14 +107,6 @@ int read_hex(const char *hex, uint8_t *dest, size_t dest_len) {
 	return 0;
 }
 
-int read_hex_from_env(const char *env_var, uint8_t *dest, size_t dest_len) {
-	const char *hex = getenv(env_var);
-	if (!hex) {
-		return -1;
-	}
-	return read_hex(hex, dest, dest_len);
-}
-
 int replace_in_file(const char *filename, const char *target, const char *replacement) {
 	FILE *f = fopen(filename, "r+b");
 	if (!f) {

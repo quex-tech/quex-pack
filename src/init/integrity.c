@@ -307,7 +307,8 @@ static int restore_integrity(const char *mapper_name, const char *dev_path, cons
 	return 0;
 }
 
-int setup_integrity(const char *mapper_name, const char *dev_path, const uint8_t key[32]) {
+static int setup_integrity_inner(const char *mapper_name, const char *dev_path,
+                                 const uint8_t key[32]) {
 	int validate_superblock_err = validate_superblock(dev_path);
 	if (validate_superblock_err && validate_superblock_err != SUPERBLOCK_IS_INVALID) {
 		trace("Cannot validate superblock\n");
@@ -320,4 +321,27 @@ int setup_integrity(const char *mapper_name, const char *dev_path, const uint8_t
 	}
 
 	return restore_integrity(mapper_name, dev_path, key);
+}
+
+int parse_integrity_spec(char *input, struct integrity_spec *output) {
+	if (!input || !output) {
+		return -1;
+	}
+
+	char *dev = strtok(input, ":");
+	char *name = strtok(NULL, ":");
+
+	if (!dev || !name) {
+		trace("Invalid integrity format: %s\n", input);
+		return -1;
+	}
+
+	output->dev = dev;
+	output->name = name;
+
+	return 0;
+}
+
+int setup_integrity(struct integrity_spec *spec, const uint8_t key[32]) {
+	return setup_integrity_inner(spec->name, spec->dev, key);
 }

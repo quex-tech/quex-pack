@@ -3,6 +3,12 @@
 
 #include <stdint.h>
 
-int setup_integrity(const char *mapper_name, const char *dev_path, const uint8_t key[32]);
+struct integrity_spec {
+	const char *dev;
+	const char *name;
+};
+
+int parse_integrity_spec(char *input, struct integrity_spec *output);
+int setup_integrity(struct integrity_spec *spec, const uint8_t key[32]);
 
 #endif

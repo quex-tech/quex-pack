@@ -21,11 +21,12 @@ Options:
   -h, --help                  display this help text
   --payload-destination MODE  where to put the payload container: initramfs | disk (default: initramfs)
                                 initramfs: container is unpacked into /opt/bundle of initramfs
-                                disk: container is saved as a separate .img file and mounted using dm-verity
+                                disk: container is saved as a separate .img file and mounted from /dev/vda using dm-verity
   -o, --output PATH           save resulting EFI file to PATH (default: ukernel.efi)
   --output-rootfs PATH        save initramfs to PATH (default: not saved)
   --output-kernel PATH        save Linux kernel to PATH (default: not saved)
   --kernel-cmdline CMD        override kernel command-line parameters (default: console=ttynull or console=ttyS0 if --debug specified)
+  --init-args CMD             add extra arguments to init
   --key-request-mask HEX      use HEX as the mask over TD Report for secret key derivation (default: 04030000c70000)
   --vault-mrenclave HEX       override Quex Vault enclave identity
   --builder-image IMAGE       use Docker IMAGE as UKI builder image (default: quex-base:latest)
@@ -35,6 +36,7 @@ EOF
 
 kernel_cmdline=""
 default_kernel_cmdline="console=ttynull"
+extra_init_args=""
 kernel_path="/var/linux/bzImage"
 builder_image="quex213/pack-uki:latest"
 payload_destination="initramfs"
@@ -87,6 +89,11 @@ while true; do
     ;;
   --kernel-cmdline)
     kernel_cmdline=$2
+    shift 2
+    continue
+    ;;
+  --init-args)
+    extra_init_args=$2
     shift 2
     continue
     ;;
@@ -202,6 +209,7 @@ docker run --rm \
   -v "$(realpath "$tmp_out")":/mnt/out \
   -e QUEX_KERNEL_CMDLINE="${kernel_cmdline:-$default_kernel_cmdline}" \
   -e QUEX_KERNEL_PATH="$kernel_path" \
+  -e QUEX_EXTRA_INIT_ARGS="$extra_init_args" \
   -e QUEX_KEY_REQUEST_MASK="$key_request_mask" \
   -e QUEX_VAULT_MRENCLAVE="$vault_mrenclave" \
   -e QUEX_PAYLOAD_DESTINATION="$payload_destination" \

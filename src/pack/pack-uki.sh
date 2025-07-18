@@ -85,18 +85,20 @@ jq '
 ' -c "$bundle/config.json" >"$bundle/config.json.new"
 mv "$bundle/config.json.new" "$bundle/config.json"
 rm "$bundle/umoci.json" "$bundle/"*.mtree
-mkdir -p "$bundle/rootfs/proc" "$bundle/rootfs/dev" "$bundle/rootfs/sys"
+mkdir -p "$bundle/rootfs/proc" "$bundle/rootfs/dev" "$bundle/rootfs/sys" "$bundle/rootfs/var/data" "$bundle/rootfs/mnt"
 find "$bundle" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 
 payload_dest=${QUEX_PAYLOAD_DESTINATION:-initramfs}
 kernel_cmdline="${QUEX_KERNEL_CMDLINE}"
+init_args="key_request_mask=$QUEX_KEY_REQUEST_MASK vault_mrenclave=$QUEX_VAULT_MRENCLAVE"
 
 case "$payload_dest" in
 disk)
   pack-disk.sh $bundle /mnt/out/disk.img $work/verity.table
   table=$(cat $work/verity.table)
-  kernel_cmdline="$kernel_cmdline dm-mod.create=\"bundle,,,ro,$table\""
   cp /var/rootfs.cpio.gz /mnt/out/rootfs.cpio.gz
+  kernel_cmdline="$kernel_cmdline dm-mod.create=\"bundle,,,ro,$table\""
+  init_args="$init_args mount=/dev/dm-0:/mnt/bundle:squashfs:ro: payload=/mnt/bundle"
   ;;
 
 initramfs | "")
@@ -109,6 +111,7 @@ initramfs | "")
     LC_ALL=C sort |
       cpio --reproducible -o -H newc) |
     gzip -9 -c -n >"/mnt/out/rootfs.cpio.gz"
+  init_args="$init_args payload=/opt/bundle"
   ;;
 
 *)
@@ -117,7 +120,11 @@ initramfs | "")
   ;;
 esac
 
-kernel_cmdline="$kernel_cmdline -- key_request_mask=$QUEX_KEY_REQUEST_MASK vault_mrenclave=$QUEX_VAULT_MRENCLAVE"
+if [ "$QUEX_EXTRA_INIT_ARGS" ]; then
+  init_args="$init_args $QUEX_EXTRA_INIT_ARGS"
+fi
+
+kernel_cmdline="$kernel_cmdline -- $init_args"
 
 cp $QUEX_KERNEL_PATH /mnt/out/bzImage
 

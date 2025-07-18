@@ -368,7 +368,7 @@ int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_m
 		goto cleanup;
 	}
 
-	tdx_uuid_t selected_att_key_id = {0};
+	/*tdx_uuid_t selected_att_key_id = {0};
 	uint8_t *p_quote_buf = NULL;
 	uint32_t quote_size = 0;
 	if ((ret = tdx_att_get_quote(&report_data, NULL, 0, &selected_att_key_id, &p_quote_buf,
@@ -380,7 +380,7 @@ int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_m
 	if ((ret = write_hex_to_file("/var/data/quote.txt", p_quote_buf, quote_size))) {
 		trace("write_hex_to_file failed: %d\n", ret);
 		goto cleanup;
-	}
+	}*/
 
 	ret = 0;
 cleanup:
