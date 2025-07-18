@@ -156,8 +156,8 @@ cleanup:
 
 int resume_device(const char *name) { return run_simple_task(name, DM_DEVICE_RESUME); }
 
-int update_device_nodes(const char *name) {
-	if (!dm_mknodes(name)) {
+int update_device_nodes() {
+	if (!dm_mknodes(NULL)) {
 		trace("dm_mknodes failed\n");
 		return -1;
 	}

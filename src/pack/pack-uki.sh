@@ -97,8 +97,8 @@ disk)
   pack-disk.sh $bundle /mnt/out/disk.img $work/verity.table
   table=$(cat $work/verity.table)
   cp /var/rootfs.cpio.gz /mnt/out/rootfs.cpio.gz
-  kernel_cmdline="$kernel_cmdline dm-mod.create=\"bundle,,,ro,$table\""
-  init_args="$init_args mount=/dev/dm-0:/mnt/bundle:squashfs:ro: payload=/mnt/bundle"
+  kernel_cmdline="$kernel_cmdline dm-mod.create=\"payload,,,ro,$table\""
+  init_args="$init_args mount=/dev/mapper/payload:/mnt/bundle:squashfs:ro: payload=/mnt/bundle"
   ;;
 
 initramfs | "")

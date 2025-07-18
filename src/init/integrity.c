@@ -236,7 +236,7 @@ static int map_device(const char *mapper_name, const char *dev_path, const uint8
 		return -1;
 	}
 
-	err = update_device_nodes(mapper_name);
+	err = update_device_nodes();
 	if (err) {
 		trace("update_device_nodes failed\n");
 		return -1;
@@ -307,22 +307,6 @@ static int restore_integrity(const char *mapper_name, const char *dev_path, cons
 	return 0;
 }
 
-static int setup_integrity_inner(const char *mapper_name, const char *dev_path,
-                                 const uint8_t key[32]) {
-	int validate_superblock_err = validate_superblock(dev_path);
-	if (validate_superblock_err && validate_superblock_err != SUPERBLOCK_IS_INVALID) {
-		trace("Cannot validate superblock\n");
-		return -1;
-	}
-
-	if (validate_superblock_err == SUPERBLOCK_IS_INVALID) {
-		trace("Superblock is invalid. Zeroizing it...\n");
-		return init_integrity(mapper_name, dev_path, key);
-	}
-
-	return restore_integrity(mapper_name, dev_path, key);
-}
-
 int parse_integrity_spec(char *input, struct integrity_spec *output) {
 	if (!input || !output) {
 		return -1;
@@ -343,5 +327,16 @@ int parse_integrity_spec(char *input, struct integrity_spec *output) {
 }
 
 int setup_integrity(struct integrity_spec *spec, const uint8_t key[32]) {
-	return setup_integrity_inner(spec->name, spec->dev, key);
+	int err = validate_superblock(spec->dev);
+	if (err && err != SUPERBLOCK_IS_INVALID) {
+		trace("Cannot validate superblock\n");
+		return -1;
+	}
+
+	if (err == SUPERBLOCK_IS_INVALID) {
+		trace("Superblock is invalid. Zeroizing it...\n");
+		return init_integrity(spec->name, spec->dev, key);
+	}
+
+	return restore_integrity(spec->name, spec->dev, key);
 }

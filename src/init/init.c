@@ -1,3 +1,4 @@
+#include "dm.h"
 #include "integrity.h"
 #include "key.h"
 #include "mkfs.h"
@@ -133,6 +134,8 @@ int init(int argc, char *argv[]) {
 			return err;
 		}
 	}
+
+	update_device_nodes();
 
 	for (size_t i = 0; i < mkfs_specs_len; i++) {
 		err = mkfs(&mkfs_specs[i]);

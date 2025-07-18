@@ -15,7 +15,7 @@ int get_device_status(const char *name, struct dm_target *target);
 int suspend_device(const char *name);
 int reload_table(const char *name, const struct dm_target *target);
 int resume_device(const char *name);
-int update_device_nodes(const char *name);
+int update_device_nodes();
 int remove_device(const char *name);
 
 #endif
