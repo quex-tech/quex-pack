@@ -1,5 +1,5 @@
 #include "dm.h"
-#include "integrity.h"
+#include "integrity_crypt.h"
 #include "key.h"
 #include "mkfs.h"
 #include "mount.h"
@@ -31,6 +31,8 @@ int init(int argc, char *argv[]) {
 	size_t mkfs_specs_len = 0;
 	struct integrity_spec integrity_specs[MAX_DISKS] = {0};
 	size_t integrity_specs_len = 0;
+	struct crypt_spec crypt_specs[MAX_DISKS] = {0};
+	size_t crypt_specs_len = 0;
 
 	for (int i = 1; i < argc; i++) {
 		trace("argv[%d] = %s\n", i, argv[i]);
@@ -68,6 +70,19 @@ int init(int argc, char *argv[]) {
 			                           &integrity_specs[integrity_specs_len++]);
 			if (err) {
 				trace("parse_integrity_spec failed: %d\n", err);
+				return err;
+			}
+			continue;
+		}
+
+		if (strcmp(key, "crypt") == 0) {
+			if (crypt_specs_len >= MAX_DISKS) {
+				trace("too many disks\n");
+				return -1;
+			}
+			err = parse_crypt_spec((char *)value, &crypt_specs[crypt_specs_len++]);
+			if (err) {
+				trace("parse_crypt_spec failed: %d\n", err);
 				return err;
 			}
 			continue;
@@ -131,6 +146,14 @@ int init(int argc, char *argv[]) {
 		err = setup_integrity(&integrity_specs[i], sk);
 		if (err != 0) {
 			trace("setup_integrity %s failed: %d\n", integrity_specs[i].dev, err);
+			return err;
+		}
+	}
+
+	for (size_t i = 0; i < crypt_specs_len; i++) {
+		err = setup_crypt(&crypt_specs[i], sk);
+		if (err != 0) {
+			trace("setup_crypt %s failed: %d\n", crypt_specs[i].dev, err);
 			return err;
 		}
 	}
