@@ -5,6 +5,7 @@
 #include "mount.h"
 #include "utils.h"
 #include <errno.h>
+#include <mbedtls/hkdf.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mount.h>
@@ -20,6 +21,10 @@
 #define MAX_DISKS 8
 
 const char *payload_path = "/opt/bundle";
+
+const uint8_t hkdf_salt[32] = {0x7f, 0x56, 0x26, 0xb9, 0xf2, 0x95, 0x8c, 0x47, 0xbe, 0x9d, 0x3d,
+                               0x7b, 0xb1, 0x6d, 0xb6, 0xf2, 0x84, 0x84, 0x14, 0x25, 0x8a, 0xa7,
+                               0x3a, 0x5a, 0x4f, 0x43, 0x9d, 0xe3, 0x18, 0x65, 0xa7, 0x3a};
 
 int init(int argc, char *argv[]) {
 	int err = 0;
@@ -142,8 +147,30 @@ int init(int argc, char *argv[]) {
 		return err;
 	}
 
+	unsigned char prk[MBEDTLS_MD_MAX_SIZE];
+	const mbedtls_md_info_t *md = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+	const size_t prk_len = mbedtls_md_get_size(md);
+
+	err = mbedtls_hkdf_extract(md, hkdf_salt, sizeof(hkdf_salt), sk, sizeof(sk), prk);
+	if (err) {
+		trace("mbedtls_hkdf_extract failed: %d\n", err);
+		return err;
+	}
+
 	for (size_t i = 0; i < integrity_specs_len; i++) {
-		err = setup_integrity(&integrity_specs[i], sk);
+		uint8_t integrity_sk[32] = {0};
+		char integrity_info[512] = {0};
+		snprintf(integrity_info, sizeof(integrity_info), "integrity=%s:%s",
+		         integrity_specs[i].dev, integrity_specs[i].name);
+		err =
+		    mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)integrity_info,
+		                        sizeof(integrity_info), integrity_sk, sizeof(integrity_sk));
+		if (err) {
+			trace("mbedtls_hkdf_expand failed: %d\n", err);
+			return err;
+		}
+
+		err = setup_integrity(&integrity_specs[i], integrity_sk);
 		if (err != 0) {
 			trace("setup_integrity %s failed: %d\n", integrity_specs[i].dev, err);
 			return err;
@@ -151,6 +178,17 @@ int init(int argc, char *argv[]) {
 	}
 
 	for (size_t i = 0; i < crypt_specs_len; i++) {
+		uint8_t crypt_sk[32] = {0};
+		char crypt_info[512] = {0};
+		snprintf(crypt_info, sizeof(crypt_info), "crypt=%s:%s", crypt_specs[i].dev,
+		         crypt_specs[i].name);
+		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_info,
+		                          sizeof(crypt_info), crypt_sk, sizeof(crypt_sk));
+		if (err) {
+			trace("mbedtls_hkdf_expand failed: %d\n", err);
+			return err;
+		}
+
 		err = setup_crypt(&crypt_specs[i], sk);
 		if (err != 0) {
 			trace("setup_crypt %s failed: %d\n", crypt_specs[i].dev, err);
