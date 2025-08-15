@@ -159,18 +159,33 @@ int init(int argc, char *argv[]) {
 
 	for (size_t i = 0; i < integrity_specs_len; i++) {
 		uint8_t integrity_sk[32] = {0};
-		char integrity_info[512] = {0};
-		snprintf(integrity_info, sizeof(integrity_info), "integrity=%s:%s",
+		char integrity_sk_info[512] = {0};
+		snprintf(integrity_sk_info, sizeof(integrity_sk_info), "integrity:%s:%s:mac",
 		         integrity_specs[i].dev, integrity_specs[i].name);
-		err =
-		    mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)integrity_info,
-		                        sizeof(integrity_info), integrity_sk, sizeof(integrity_sk));
+		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)integrity_sk_info,
+		                          sizeof(integrity_sk_info), integrity_sk,
+		                          sizeof(integrity_sk));
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
 			return err;
 		}
 
-		err = setup_integrity(&integrity_specs[i], integrity_sk);
+		uint8_t integrity_journal_crypt_sk[32] = {0};
+		char integrity_journal_crypt_sk_info[512] = {0};
+		snprintf(integrity_journal_crypt_sk_info, sizeof(integrity_journal_crypt_sk_info),
+		         "integrity:%s:%s:journal_crypt", integrity_specs[i].dev,
+		         integrity_specs[i].name);
+		err = mbedtls_hkdf_expand(
+		    md, prk, prk_len, (uint8_t *)integrity_journal_crypt_sk_info,
+		    sizeof(integrity_journal_crypt_sk_info), integrity_journal_crypt_sk,
+		    sizeof(integrity_journal_crypt_sk));
+		if (err) {
+			trace("mbedtls_hkdf_expand failed: %d\n", err);
+			return err;
+		}
+
+		err =
+		    setup_integrity(&integrity_specs[i], integrity_sk, integrity_journal_crypt_sk);
 		if (err != 0) {
 			trace("setup_integrity %s failed: %d\n", integrity_specs[i].dev, err);
 			return err;
@@ -179,17 +194,42 @@ int init(int argc, char *argv[]) {
 
 	for (size_t i = 0; i < crypt_specs_len; i++) {
 		uint8_t crypt_sk[32] = {0};
-		char crypt_info[512] = {0};
-		snprintf(crypt_info, sizeof(crypt_info), "crypt=%s:%s", crypt_specs[i].dev,
+		char crypt_sk_info[512] = {0};
+		snprintf(crypt_sk_info, sizeof(crypt_sk_info), "crypt=%s:%s", crypt_specs[i].dev,
 		         crypt_specs[i].name);
-		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_info,
-		                          sizeof(crypt_info), crypt_sk, sizeof(crypt_sk));
+		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_sk_info,
+		                          sizeof(crypt_sk_info), crypt_sk, sizeof(crypt_sk));
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
 			return err;
 		}
 
-		err = setup_crypt(&crypt_specs[i], sk);
+		uint8_t crypt_journal_crypt_sk[32] = {0};
+		char crypt_journal_crypt_sk_info[512] = {0};
+		snprintf(crypt_journal_crypt_sk_info, sizeof(crypt_journal_crypt_sk_info),
+		         "crypt:%s:%s:journal_crypt", crypt_specs[i].dev, crypt_specs[i].name);
+		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_journal_crypt_sk_info,
+		                          sizeof(crypt_journal_crypt_sk_info),
+		                          crypt_journal_crypt_sk, sizeof(crypt_journal_crypt_sk));
+		if (err) {
+			trace("mbedtls_hkdf_expand failed: %d\n", err);
+			return err;
+		}
+
+		uint8_t crypt_journal_mac_sk[32] = {0};
+		char crypt_journal_mac_sk_info[512] = {0};
+		snprintf(crypt_journal_mac_sk_info, sizeof(crypt_journal_mac_sk_info),
+		         "crypt:%s:%s:journal_mac", crypt_specs[i].dev, crypt_specs[i].name);
+		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_journal_mac_sk_info,
+		                          sizeof(crypt_journal_mac_sk_info), crypt_journal_mac_sk,
+		                          sizeof(crypt_journal_mac_sk));
+		if (err) {
+			trace("mbedtls_hkdf_expand failed: %d\n", err);
+			return err;
+		}
+
+		err = setup_crypt(&crypt_specs[i], crypt_sk, crypt_journal_crypt_sk,
+		                  crypt_journal_mac_sk);
 		if (err != 0) {
 			trace("setup_crypt %s failed: %d\n", crypt_specs[i].dev, err);
 			return err;

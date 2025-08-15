@@ -14,8 +14,10 @@ struct crypt_spec {
 };
 
 int parse_integrity_spec(char *input, struct integrity_spec *output);
-int setup_integrity(struct integrity_spec *spec, const uint8_t key[32]);
+int setup_integrity(struct integrity_spec *spec, const uint8_t mac_key[32],
+                    const uint8_t journal_crypt_key[32]);
 int parse_crypt_spec(char *input, struct crypt_spec *output);
-int setup_crypt(struct crypt_spec *spec, const uint8_t key[32]);
+int setup_crypt(struct crypt_spec *spec, const uint8_t key[32], const uint8_t journal_crypt_key[32],
+                const uint8_t journal_mac_key[32]);
 
 #endif

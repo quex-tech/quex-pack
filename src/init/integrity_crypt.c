@@ -57,7 +57,7 @@ static const struct superblock integrity_only_expected_sb = {.magic = "integrt",
                                                              .integrity_tag_size = 32,
                                                              .journal_sections = 0,
                                                              .provided_data_sectors = 0,
-                                                             .flags = 0x18,
+                                                             .flags = 0x19,
                                                              .log2_sectors_per_block = 0,
                                                              .log2_blocks_per_bitmap_bit = 0,
                                                              .pad = {0},
@@ -66,12 +66,12 @@ static const struct superblock integrity_only_expected_sb = {.magic = "integrt",
                                                              .salt = {0}};
 
 static const struct superblock integrity_crypt_expected_sb = {.magic = "integrt",
-                                                              .version = 4,
+                                                              .version = 5,
                                                               .log2_interleave_sectors = 0x0f,
                                                               .integrity_tag_size = 28,
                                                               .journal_sections = 0,
                                                               .provided_data_sectors = 0,
-                                                              .flags = 0x08,
+                                                              .flags = 0x19,
                                                               .log2_sectors_per_block = 0,
                                                               .log2_blocks_per_bitmap_bit = 0,
                                                               .pad = {0},
@@ -222,27 +222,43 @@ int test_read(const char *dev_path) {
 	return -1;
 }
 
-static void format_integrity_only_params(const char *dev_path, const uint8_t key[32],
+static void format_integrity_only_params(const char *dev_path, const uint8_t mac_key[32],
+                                         const uint8_t journal_crypt_key[32],
                                          char output[TABLE_MAX_LENGTH]) {
-	char key_hex[65];
-	write_hex(key, 32, key_hex);
+	char mac_key_hex[65];
+	write_hex(mac_key, 32, mac_key_hex);
+
+	char journal_crypt_key_hex[65];
+	write_hex(journal_crypt_key, 32, journal_crypt_key_hex);
 
 	snprintf(output, TABLE_MAX_LENGTH,
-	         "%s 0 - J 5 "
+	         "%s 0 - J 6 "
 	         "journal_sectors:%u "
 	         "internal_hash:hmac(sha256):%s "
+	         "journal_crypt:ctr(aes):%s "
 	         "block_size:%d "
 	         "fix_hmac fix_padding",
-	         dev_path, JOURNAL_SECTORS, key_hex, BLOCK_SIZE);
+	         dev_path, JOURNAL_SECTORS, mac_key_hex, journal_crypt_key_hex, BLOCK_SIZE);
 }
 
-static void format_integrity_crypt_params(const char *dev_path, char output[TABLE_MAX_LENGTH]) {
+static void format_integrity_crypt_params(const char *dev_path, const uint8_t journal_crypt_key[32],
+                                          const uint8_t journal_mac_key[32],
+                                          char output[TABLE_MAX_LENGTH]) {
+
+	char journal_crypt_key_hex[65];
+	write_hex(journal_crypt_key, 32, journal_crypt_key_hex);
+
+	char journal_mac_key_hex[65];
+	write_hex(journal_mac_key, 32, journal_mac_key_hex);
+
 	snprintf(output, TABLE_MAX_LENGTH,
-	         "%s 0 28 J 4 "
+	         "%s 0 28 J 6 "
 	         "journal_sectors:%u "
+	         "journal_crypt:ctr(aes):%s "
+	         "journal_mac:hmac(sha256):%s "
 	         "block_size:%d "
 	         "fix_hmac fix_padding",
-	         dev_path, JOURNAL_SECTORS, BLOCK_SIZE);
+	         dev_path, JOURNAL_SECTORS, journal_crypt_key_hex, journal_mac_key_hex, BLOCK_SIZE);
 }
 
 static void format_crypt_params(const char *dev_path, const uint8_t key[32],
@@ -319,7 +335,8 @@ static int map_crypt_device(const char *mapper_name, char target_params[TABLE_MA
 	return 0;
 }
 
-static int init_integrity(const char *mapper_name, const char *dev_path, const uint8_t key[32]) {
+static int init_integrity(const char *mapper_name, const char *dev_path, const uint8_t mac_key[32],
+                          const uint8_t journal_crypt_key[32]) {
 	trace("Initializing integrity...\n");
 
 	if (zeroize_device(dev_path, SUPERBLOCK_SIZE) != 0) {
@@ -328,7 +345,7 @@ static int init_integrity(const char *mapper_name, const char *dev_path, const u
 	}
 
 	char target_params[TABLE_MAX_LENGTH] = {0};
-	format_integrity_only_params(dev_path, key, target_params);
+	format_integrity_only_params(dev_path, mac_key, journal_crypt_key, target_params);
 
 	int err = map_integrity_device(mapper_name, target_params);
 	if (err) {
@@ -356,11 +373,12 @@ static int init_integrity(const char *mapper_name, const char *dev_path, const u
 	return 0;
 }
 
-static int restore_integrity(const char *mapper_name, const char *dev_path, const uint8_t key[32]) {
+static int restore_integrity(const char *mapper_name, const char *dev_path,
+                             const uint8_t mac_key[32], const uint8_t journal_crypt_key[32]) {
 	trace("Restoring integrity...\n");
 
 	char target_params[TABLE_MAX_LENGTH] = {0};
-	format_integrity_only_params(dev_path, key, target_params);
+	format_integrity_only_params(dev_path, mac_key, journal_crypt_key, target_params);
 
 	int err = map_integrity_device(mapper_name, target_params);
 	if (err) {
@@ -380,7 +398,8 @@ static int restore_integrity(const char *mapper_name, const char *dev_path, cons
 	return 0;
 }
 
-static int init_crypt(const char *mapper_name, const char *dev_path, const uint8_t key[32]) {
+static int init_crypt(const char *mapper_name, const char *dev_path, const uint8_t key[32],
+                      const uint8_t journal_crypt_key[32], const uint8_t journal_mac_key[32]) {
 	trace("Initializing integrity...\n");
 
 	char integrity_mapper_name[MAPPER_NAME_MAX_LENGTH] = {0};
@@ -392,7 +411,8 @@ static int init_crypt(const char *mapper_name, const char *dev_path, const uint8
 	}
 
 	char integrity_target_params[TABLE_MAX_LENGTH] = {0};
-	format_integrity_crypt_params(dev_path, integrity_target_params);
+	format_integrity_crypt_params(dev_path, journal_crypt_key, journal_mac_key,
+	                              integrity_target_params);
 
 	int err = map_integrity_device(integrity_mapper_name, integrity_target_params);
 	if (err) {
@@ -435,14 +455,16 @@ static int init_crypt(const char *mapper_name, const char *dev_path, const uint8
 	return 0;
 }
 
-static int restore_crypt(const char *mapper_name, const char *dev_path, const uint8_t key[32]) {
+static int restore_crypt(const char *mapper_name, const char *dev_path, const uint8_t key[32],
+                         const uint8_t journal_crypt_key[32], const uint8_t journal_mac_key[32]) {
 	trace("Restoring integrity...\n");
 
 	char integrity_mapper_name[MAPPER_NAME_MAX_LENGTH] = {0};
 	snprintf(integrity_mapper_name, sizeof(integrity_mapper_name), "%s-integrity", mapper_name);
 
 	char integrity_target_params[TABLE_MAX_LENGTH] = {0};
-	format_integrity_crypt_params(dev_path, integrity_target_params);
+	format_integrity_crypt_params(dev_path, journal_crypt_key, journal_mac_key,
+	                              integrity_target_params);
 
 	int err = map_integrity_device(integrity_mapper_name, integrity_target_params);
 	if (err) {
@@ -503,7 +525,8 @@ int parse_integrity_spec(char *input, struct integrity_spec *output) {
 	return 0;
 }
 
-int setup_integrity(struct integrity_spec *spec, const uint8_t key[32]) {
+int setup_integrity(struct integrity_spec *spec, const uint8_t mac_key[32],
+                    const uint8_t journal_crypt_key[32]) {
 	struct superblock sb = {0};
 	int err = get_superblock(spec->dev, &sb);
 	if (err && err != NO_SUPERBLOCK) {
@@ -513,7 +536,7 @@ int setup_integrity(struct integrity_spec *spec, const uint8_t key[32]) {
 
 	if (err == NO_SUPERBLOCK) {
 		trace("No superblock. Zeroizing it...\n");
-		return init_integrity(spec->name, spec->dev, key);
+		return init_integrity(spec->name, spec->dev, mac_key, journal_crypt_key);
 	}
 
 	err = validate_superblock(&sb, &integrity_only_expected_sb);
@@ -522,7 +545,7 @@ int setup_integrity(struct integrity_spec *spec, const uint8_t key[32]) {
 		return err;
 	}
 
-	return restore_integrity(spec->name, spec->dev, key);
+	return restore_integrity(spec->name, spec->dev, mac_key, journal_crypt_key);
 }
 
 int parse_crypt_spec(char *input, struct crypt_spec *output) {
@@ -544,7 +567,8 @@ int parse_crypt_spec(char *input, struct crypt_spec *output) {
 	return 0;
 }
 
-int setup_crypt(struct crypt_spec *spec, const uint8_t key[32]) {
+int setup_crypt(struct crypt_spec *spec, const uint8_t key[32], const uint8_t journal_crypt_key[32],
+                const uint8_t journal_mac_key[32]) {
 	struct superblock sb = {0};
 	int err = get_superblock(spec->dev, &sb);
 	if (err && err != NO_SUPERBLOCK) {
@@ -554,7 +578,7 @@ int setup_crypt(struct crypt_spec *spec, const uint8_t key[32]) {
 
 	if (err == NO_SUPERBLOCK) {
 		trace("No superblock. Zeroizing it...\n");
-		return init_crypt(spec->name, spec->dev, key);
+		return init_crypt(spec->name, spec->dev, key, journal_crypt_key, journal_mac_key);
 	}
 
 	err = validate_superblock(&sb, &integrity_crypt_expected_sb);
@@ -563,5 +587,5 @@ int setup_crypt(struct crypt_spec *spec, const uint8_t key[32]) {
 		return err;
 	}
 
-	return restore_crypt(spec->name, spec->dev, key);
+	return restore_crypt(spec->name, spec->dev, key, journal_crypt_key, journal_mac_key);
 }
