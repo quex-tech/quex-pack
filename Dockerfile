@@ -1,10 +1,10 @@
-# ubuntu:noble-20250415.1
-FROM ubuntu@sha256:dc17125eaac86538c57da886e494a34489122fb6a3ebb6411153d742594c2ddc
+# ubuntu:noble-20250805
+FROM ubuntu@sha256:9cbed754112939e914291337b5e554b07ad7c392491dba6daf25eef1332a22e8
 
 # Install Ubuntu packages
-ARG LD_LINUX_SO_SHA256=6c5e1b4528b704dc7081aa45b5037bda4ea9cad78ca562b4fb6b0dbdbfc7e7e7
-ARG LIBC_SO_SHA256=e7a914a33fd4f6d25057b8d48c7c5f3d55ab870ec4ee27693d6c5f3a532e6226
-ARG EFI_STUB_SHA256=078e09f18b7754a7a542814c0a30ce059743d6ff334a282a288b7cf23b11662f
+ARG LD_LINUX_SO_SHA256=4f961aefd1ecbc91b6de5980623aa389ca56e8bfb5f2a1d2a0b94b54b0fde894
+ARG LIBC_SO_SHA256=de259f5276c4a991f78bf87225d6b40e56edbffe0dcbc0ffca36ec7fe30f3f77
+ARG EFI_STUB_SHA256=e5c5ec997fa117d6151e80c3bf965d53d4723d0277192f535be70a7023088fc2
 RUN \
   --mount=type=cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -46,7 +46,7 @@ DEBIAN_FRONTEND=noninteractive \
   rsync \
   skopeo \
   squashfs-tools \
-  systemd-boot-efi=255.4-1ubuntu8.6 \
+  systemd-boot-efi=255.4-1ubuntu8.10 \
   systemd-ukify \
   umoci \
   xxd
@@ -65,10 +65,10 @@ ARG SOURCE_DATE_EPOCH
 
 #Build Linux
 COPY src/linux /tmp/linux-config
-ARG LINUX_VERSION=6.12.41
-ARG LINUX_TAR_XZ_SHA256=6b19a3ae99423de2416964d67251d745910277af258b4c4c63e88fd87dbf0e27
+ARG LINUX_VERSION=6.12.45
+ARG LINUX_TAR_XZ_SHA256=8f95a8549cfbdfb89c1181a1f55a971f04dfcd629508a2ed70b777ab92f9db3e
 ADD --checksum=sha256:$LINUX_TAR_XZ_SHA256 https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${LINUX_VERSION}.tar.xz /tmp/linux/linux.tar.xz
-ARG LINUX_BZIMAGE_SHA256=3fca6b88105d1c6e82aef39355c48d6a1fb3148642fd9e27572de37c14845cbb
+ARG LINUX_BZIMAGE_SHA256=c82bcd8de6f1589930564127abad8912fe094c069ba821948710ec5c237ff2b4
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -95,7 +95,7 @@ EOF
 ARG CRUN_VERSION=1.21
 ARG CRUN_TAR_GZ_SHA256=4bfb700e764a4804a4de3ecf07753f4c391005356d60356df65d80ae0914c486
 ADD --checksum=sha256:$CRUN_TAR_GZ_SHA256 https://github.com/containers/crun/releases/download/${CRUN_VERSION}/crun-${CRUN_VERSION}.tar.gz /tmp/crun/crun.tar.gz
-ARG CRUN_BIN_SHA256=5fca2c7b21b4182f10bbaaafb10ac5131d74f66bfba2fad61a4cd9190d0af206
+ARG CRUN_BIN_SHA256=7d9ec70dbf2c211958721d26392e20b0a857ce14f5382c0762957402912ac316
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -162,7 +162,7 @@ EOF
 
 # Finalize rootfs and verify its checksum
 COPY rootfs ${ROOTFS_DIR}
-ARG ROOTFS_CPIO_GZ_SHA256=037086e968f2ab78d77059a46b2ffec7e7b21e2d66dd823de02179bf31917590
+ARG ROOTFS_CPIO_GZ_SHA256=37d577e97b9bc5256d27aa5ab058d30dc1b4669371e9f6d5b528e1320d7974e2
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -179,4 +179,4 @@ EOF
 ENV SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH
 
 COPY src/pack/*.sh /usr/local/bin/
-ENTRYPOINT ["/bin/bash", "/usr/local/bin/pack-uki.sh"]
+ENTRYPOINT ["/bin/bash", "/usr/local/bin/pack.sh"]

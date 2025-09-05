@@ -1,6 +1,8 @@
 #!/bin/bash
 set -eo pipefail
 
+default_builder_image="quex213/pack:0.0.1"
+
 usage() {
   cat <<EOF
 Usage:
@@ -29,7 +31,7 @@ Options:
   --init-args CMD             add extra arguments to init
   --key-request-mask HEX      use HEX as the mask over TD Report for secret key derivation (default: 04030000c70000)
   --vault-mrenclave HEX       override Quex Vault enclave identity
-  --builder-image IMAGE       use Docker IMAGE as UKI builder image (default: quex-base:latest)
+  --builder-image IMAGE       use Docker IMAGE as UKI builder image (default: $default_builder_image)
   --debug                     use non-minimal Linux kernel build to allow debug output to the console
 EOF
 }
@@ -38,7 +40,7 @@ kernel_cmdline=""
 default_kernel_cmdline="console=ttynull"
 extra_init_args=""
 kernel_path="/var/linux/bzImage"
-builder_image="quex213/pack-uki:latest"
+builder_image=$default_builder_image
 payload_destination="initramfs"
 output_path="ukernel.efi"
 output_disk_path="disk.img"
