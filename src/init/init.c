@@ -20,7 +20,7 @@
 
 #define MAX_DISKS 8
 
-const char *payload_path = "/opt/bundle";
+const char *workload_path = "/opt/bundle";
 
 const uint8_t hkdf_salt[32] = {0x7f, 0x56, 0x26, 0xb9, 0xf2, 0x95, 0x8c, 0x47, 0xbe, 0x9d, 0x3d,
                                0x7b, 0xb1, 0x6d, 0xb6, 0xf2, 0x84, 0x84, 0x14, 0x25, 0x8a, 0xa7,
@@ -61,8 +61,8 @@ int init(int argc, char *argv[]) {
 			continue;
 		}
 
-		if (strcmp(key, "payload") == 0) {
-			payload_path = value;
+		if (strcmp(key, "workload") == 0) {
+			workload_path = value;
 			continue;
 		}
 
@@ -256,7 +256,7 @@ int init(int argc, char *argv[]) {
 	}
 
 	char config_path[256] = {0};
-	strcat(config_path, payload_path);
+	strcat(config_path, workload_path);
 	strcat(config_path, "/config.json");
 	if ((err = copy_file(config_path, BUNDLE_CONFIG_PATH)) != 0) {
 		trace("Cannot copy %s to %s\n", config_path, BUNDLE_CONFIG_PATH);
@@ -271,7 +271,7 @@ int init(int argc, char *argv[]) {
 
 	if (pid == 0) {
 		const char *exec_argv[] = {"crun",       "run",      "--no-pivot",       "--bundle",
-		                           payload_path, "--config", BUNDLE_CONFIG_PATH, "app",
+		                           workload_path, "--config", BUNDLE_CONFIG_PATH, "app",
 		                           NULL};
 		const char *exec_envp[] = {NULL};
 		execve("/usr/bin/crun", (char *const *)exec_argv, (char *const *)exec_envp);

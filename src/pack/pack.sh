@@ -88,17 +88,17 @@ rm "$bundle/umoci.json" "$bundle/"*.mtree
 mkdir -p "$bundle/rootfs/proc" "$bundle/rootfs/dev" "$bundle/rootfs/sys" "$bundle/rootfs/var/data" "$bundle/rootfs/mnt"
 find "$bundle" -exec touch -h -d "@${SOURCE_DATE_EPOCH}" {} +
 
-payload_dest=${QUEX_PAYLOAD_DESTINATION:-initramfs}
+workload_dest=${QUEX_WORKLOAD_DESTINATION:-initramfs}
 kernel_cmdline="${QUEX_KERNEL_CMDLINE}"
 init_args="key_request_mask=$QUEX_KEY_REQUEST_MASK vault_mrenclave=$QUEX_VAULT_MRENCLAVE"
 
-case "$payload_dest" in
+case "$workload_dest" in
 disk)
   pack-disk.sh $bundle /mnt/out/disk.img $work/verity.table
   table=$(cat $work/verity.table)
   cp /var/rootfs.cpio.gz /mnt/out/rootfs.cpio.gz
-  kernel_cmdline="$kernel_cmdline dm-mod.create=\"payload,,,ro,$table\""
-  init_args="$init_args mount=/dev/mapper/payload:/mnt/bundle:squashfs:ro: payload=/mnt/bundle"
+  kernel_cmdline="$kernel_cmdline dm-mod.create=\"workload,,,ro,$table\""
+  init_args="$init_args mount=/dev/mapper/workload:/mnt/bundle:squashfs:ro: workload=/mnt/bundle"
   ;;
 
 initramfs | "")
@@ -111,11 +111,11 @@ initramfs | "")
     LC_ALL=C sort |
       cpio --reproducible -o -H newc) |
     gzip -9 -c -n >"/mnt/out/rootfs.cpio.gz"
-  init_args="$init_args payload=/opt/bundle"
+  init_args="$init_args workload=/opt/bundle"
   ;;
 
 *)
-  echo "Unsupported QUEX_PAYLOAD_DESTINATION='$payload_dest'; expected 'disk' or 'initramfs'." >&2
+  echo "Unsupported QUEX_WORKLOAD_DESTINATION='$workload_dest'; expected 'disk' or 'initramfs'." >&2
   exit 1
   ;;
 esac

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eo pipefail
 
-default_builder_image="quex213/pack:0.0.1"
+default_builder_image="quex213/pack:0.0.2"
 
 usage() {
   cat <<EOF
@@ -11,9 +11,9 @@ Usage:
 Examples:
   $0 -o myuki.efi docker-daemon:myimage:mytag
 
-  $0 --payload-destination disk -o myuki.efi --output-disk mydisk.img docker-daemon:myimage:mytag
+  $0 --workload-destination disk -o myuki.efi --output-disk mydisk.img docker-daemon:myimage:mytag
 
-Build a minimalist VM using SOURCE_IMAGE as the payload container.
+Build a minimalist VM using SOURCE_IMAGE as the workload container.
 
 SOURCE_IMAGE is in transport:details format.
 Supported transports: dir, docker, docker-archive, docker-daemon, oci, oci-archive.
@@ -21,7 +21,7 @@ See containers-transports(5) (https://github.com/containers/image/blob/main/docs
 
 Options:
   -h, --help                  display this help text
-  --payload-destination MODE  where to put the payload container: initramfs | disk (default: initramfs)
+  --workload-destination MODE  where to put the workload container: initramfs | disk (default: initramfs)
                                 initramfs: container is unpacked into /opt/bundle of initramfs
                                 disk: container is saved as a separate .img file and mounted from /dev/vda using dm-verity
   -o, --output PATH           save resulting EFI file to PATH (default: ukernel.efi)
@@ -41,7 +41,7 @@ default_kernel_cmdline="console=ttynull"
 extra_init_args=""
 kernel_path="/var/linux/bzImage"
 builder_image=$default_builder_image
-payload_destination="initramfs"
+workload_destination="initramfs"
 output_path="ukernel.efi"
 output_disk_path="disk.img"
 output_rootfs_path=""
@@ -55,13 +55,13 @@ while true; do
     usage
     exit 0
     ;;
-  --payload-destination)
+  --workload-destination)
     case "$2" in
       initramfs|disk)
-        payload_destination=$2
+        workload_destination=$2
         ;;
       *)
-        echo "Invalid value for --payload-destination: $2"
+        echo "Invalid value for --workload-destination: $2"
         echo "Valid options are: initramfs, disk"
         exit 1
         ;;
@@ -214,12 +214,12 @@ docker run --rm \
   -e QUEX_EXTRA_INIT_ARGS="$extra_init_args" \
   -e QUEX_KEY_REQUEST_MASK="$key_request_mask" \
   -e QUEX_VAULT_MRENCLAVE="$vault_mrenclave" \
-  -e QUEX_PAYLOAD_DESTINATION="$payload_destination" \
+  -e QUEX_WORKLOAD_DESTINATION="$workload_destination" \
   "$builder_image" \
   "$source_image"
 
 mv "${tmp_out}/ukernel.efi" "$output_path"
-if [ "$payload_destination" == "disk" ]; then
+if [ "$workload_destination" == "disk" ]; then
   mv "${tmp_out}/disk.img" "$output_disk_path"
 fi
 if [ "$output_rootfs_path" ]; then
