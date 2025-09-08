@@ -129,9 +129,52 @@ make install
 rm -rf /tmp/crun
 EOF
 
+# Build e2fsprogs
+ARG E2FS_VERSION=1.47.1
+ARG E2FS_TAR_GZ_SHA256=0d2e0bf80935c3392b73a60dbff82d8a6ef7ea88b806c2eea964b6837d3fd6c2
+ARG E2FS_BIN_SHA256=d4fd4a539edf336733c0f7694cabeae4aa22f29e9b632836cbecf960c561129a
+ADD --checksum=sha256:$E2FS_TAR_GZ_SHA256 https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v${E2FS_VERSION}/e2fsprogs-${E2FS_VERSION}.tar.gz /tmp/e2fs/e2fs.tar.gz
+RUN <<EOF
+#!/bin/bash
+set -euo pipefail
+cd /tmp/e2fs
+tar -x -f e2fs.tar.gz
+cd e2fsprogs-${E2FS_VERSION}
+./configure --prefix ${ROOTFS_DIR}/usr \
+		--with-systemd-unit-dir= \
+		--with-udev-rules-dir= \
+		--with-crond-dir= \
+		--disable-testio-debug \
+		--enable-libuuid \
+		--disable-backtrace \
+		--disable-debugfs \
+		--disable-imager \
+		--disable-resizer \
+		--disable-defrag \
+		--disable-tls \
+		--disable-uuidd \
+		--disable-mmp \
+		--disable-tdb \
+		--disable-bmap-stats \
+		--disable-nls \
+		--disable-rpath \
+		--disable-largefile \
+		--disable-fuse2fs \
+		--without-pthread \
+		--without-libiconv-prefix \
+		--without-libintl-prefix \
+		--without-libarchive
+make libs
+make -C ./misc mke2fs.static
+sha256sum ./misc/mke2fs.static
+sha256sum -c <<<"$E2FS_BIN_SHA256  ./misc/mke2fs.static"
+cp ./misc/mke2fs.static ${ROOTFS_DIR}/usr/bin/mke2fs
+rm -rf /tmp/e2fs
+EOF
+
 # Build init
 ARG INIT_CFLAGS=""
-ARG INIT_BIN_SHA256=1f4ff7877d69ada3c77750b17848c1d23a497db2bad8d673c800c2a0c473f510
+ARG INIT_BIN_SHA256=754e8ad26b95506bef173c6ee9eda6897a1d8e74e24c19939d38912708429050
 ARG LIBTDX_ATTEST_SO_SHA256=d26f8ac5df799edc6bce92f7b45c46fe03cc3841ef64e542b7c2e7d44d789820
 COPY src/init /tmp/init
 RUN <<EOF
@@ -146,7 +189,6 @@ $LIBTDX_ATTEST_SO_SHA256  vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so
 mkdir -p ${ROOTFS_DIR}/usr/lib ${ROOTFS_DIR}/usr/bin
 cp init ${ROOTFS_DIR}/
 cp -a vendor/build/usr/lib/x86_64-linux-gnu ${ROOTFS_DIR}/usr/lib/
-cp vendor/build/usr/bin/mke2fs ${ROOTFS_DIR}/usr/bin/
 rm -rf /tmp/init
 EOF
 
@@ -168,7 +210,7 @@ EOF
 
 # Finalize rootfs and verify its checksum
 COPY rootfs ${ROOTFS_DIR}
-ARG ROOTFS_CPIO_GZ_SHA256=4d1a9d839c74b3d84b396bc460cf58c61d3e439517755fb84c73c8b06c073207
+ARG ROOTFS_CPIO_GZ_SHA256=9618e5df7a6c8e608cf1b766df32bc357af6665465f8424460100d3a2bb4156e
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail

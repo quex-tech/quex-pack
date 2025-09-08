@@ -22,7 +22,7 @@ OUT := init
 
 INCLUDES := -I$(VENDOR_OUT_DIR)/usr/include -I$(VENDOR_OUT_DIR)/usr/lib/sgx-sdk/include
 LIBDIRS := -L$(VENDOR_OUT_DIR)/usr/lib -L$(VENDOR_OUT_DIR)/usr/lib/x86_64-linux-gnu
-LIBS := -lmbedx509 -lmbedcrypto -ltdx_attest -ldevmapper -lm -lext2fs -luuid -lcom_err
+LIBS := -lmbedx509 -lmbedcrypto -ltdx_attest -ldevmapper -lm
 
 COMPILE.c = $(CC) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) -c
 
@@ -39,12 +39,11 @@ endef
 include $(VENDOR_DIR)/mbedtls.mk
 include $(VENDOR_DIR)/intel.mk
 include $(VENDOR_DIR)/lvm.mk
-include $(VENDOR_DIR)/e2fsprogs.mk
 
 $(OUT): $(OBJS)
 	@$(CC) $(OBJS) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) $(LIBDIRS) $(LIBS) -o $@
 
-$(OBJS): mbedtls intel lvm e2fsprogs
+$(OBJS): mbedtls intel lvm
 
 %.o: %.c
 	@echo "CC $<"

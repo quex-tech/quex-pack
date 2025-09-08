@@ -2,41 +2,53 @@
 // Copyright 2025 Quex Technologies
 #include "mkfs.h"
 #include "utils.h"
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wsign-conversion"
-#include <ext2fs/ext2_fs.h>
-#pragma GCC diagnostic pop
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wsign-conversion"
-#pragma GCC diagnostic ignored "-Wconversion"
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#include <ext2fs/ext2fs.h>
-#pragma GCC diagnostic pop
+#include <endian.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <stdbool.h>
+#include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-static bool device_is_ext4(const char *dev) {
-	ext2_filsys fs = NULL;
-	errcode_t err;
+#define EXT4_SUPERBLOCK_OFFSET 1024
+#define EXT4_SUPERBLOCK_SIZE 1024
 
-	err = ext2fs_open(dev, 0, 0, 0, unix_io_manager, &fs);
-	if (err) {
-		return false;
+struct superblock {
+	uint16_t magic;
+};
+
+static void parse_superblock(uint8_t buf[EXT4_SUPERBLOCK_SIZE], struct superblock *sb) {
+	sb->magic = le16toh(*(uint16_t *)(buf + 0x38));
+}
+
+static int get_superblock(const char *dev_path, struct superblock *output) {
+	int err = 0;
+	uint8_t raw_sb[EXT4_SUPERBLOCK_SIZE];
+	int fd = open(dev_path, O_RDONLY | O_CLOEXEC);
+	if (fd < 0) {
+		err = errno;
+		trace("open %s failed: %s\n", dev_path, strerror(err));
+		return -err;
 	}
 
-	if (fs->super->s_magic != EXT2_SUPER_MAGIC) {
-		ext2fs_close(fs);
-		return false;
+	ssize_t n = pread(fd, raw_sb, EXT4_SUPERBLOCK_SIZE, EXT4_SUPERBLOCK_OFFSET);
+	close(fd);
+
+	if (n < 0) {
+		err = errno;
+		trace("Cannot read superblock from %s: %s\n", dev_path, strerror(err));
+		return -err;
 	}
 
-	bool has_ext4_features = ext2fs_has_feature_extents(fs->super) &&
-	                         ext2fs_has_feature_64bit(fs->super) &&
-	                         ext2fs_has_feature_metadata_csum(fs->super);
+	if (n != EXT4_SUPERBLOCK_SIZE) {
+		trace("Cannot read superblock from %s: read %ld, want %d\n", dev_path, n,
+		      EXT4_SUPERBLOCK_SIZE);
+		return -1;
+	}
 
-	ext2fs_close(fs);
+	parse_superblock(raw_sb, output);
 
-	return has_ext4_features;
+	return 0;
 }
 
 static int mkfs_ext4(const char *dev, const char *options) {
@@ -48,8 +60,8 @@ static int mkfs_ext4(const char *dev, const char *options) {
 	}
 
 	if (pid == 0) {
-		execl("/usr/bin/mke2fs", "mke2fs", "-t", "ext4", "-F", "-q", "-L", "demo-ext4",
-		      "-O", options, dev, (char *)NULL);
+		execl("/usr/bin/mke2fs", "mke2fs", "-t", "ext4", "-F", "-q", "-L", "quex", "-O",
+		      options, dev, (char *)NULL);
 		trace("exec failed: %s\n", strerror(errno));
 		_exit(127);
 	}
@@ -93,13 +105,20 @@ int mkfs(struct mkfs_spec *spec) {
 		return -1;
 	}
 
-	if (device_is_ext4(spec->dev)) {
+	struct superblock sb = {0};
+	int err = get_superblock(spec->dev, &sb);
+	if (err) {
+		trace("get_superblock failed: %d\n", err);
+		return err;
+	}
+
+	if (sb.magic == 0xef53) {
 		trace("%s already has %s\n", spec->dev, spec->fstype);
 		return 0;
 	}
 
 	trace("No %s. Formatting...\n", spec->fstype);
-	int err = mkfs_ext4(spec->dev, spec->options);
+	err = mkfs_ext4(spec->dev, spec->options);
 	if (err) {
 		trace("mkfs_ext4 failed: %d\n", err);
 		return err;
