@@ -1,6 +1,10 @@
 # ubuntu:noble-20250805
 FROM ubuntu@sha256:9cbed754112939e914291337b5e554b07ad7c392491dba6daf25eef1332a22e8
 
+ARG REPRO_SOURCES_LIST_VERSION=0.1.4
+ARG REPRO_SOURCES_LIST_SHA256=c125df9762b0c7233459087bb840c0e5dbfc4d9690ee227f1ed8994f4d51d2e0
+ADD --checksum=sha256:$REPRO_SOURCES_LIST_SHA256 --chmod=755 https://raw.githubusercontent.com/reproducible-containers/repro-sources-list.sh/refs/tags/v${REPRO_SOURCES_LIST_VERSION}/repro-sources-list.sh /usr/local/bin/repro-sources-list.sh
+
 # Install Ubuntu packages
 ARG LD_LINUX_SO_SHA256=4f961aefd1ecbc91b6de5980623aa389ca56e8bfb5f2a1d2a0b94b54b0fde894
 ARG LIBC_SO_SHA256=de259f5276c4a991f78bf87225d6b40e56edbffe0dcbc0ffca36ec7fe30f3f77
@@ -8,7 +12,6 @@ ARG EFI_STUB_SHA256=e5c5ec997fa117d6151e80c3bf965d53d4723d0277192f535be70a702308
 RUN \
   --mount=type=cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,target=/var/lib/apt,sharing=locked \
-  --mount=type=bind,source=./src/vendor/repro-sources-list/repro-sources-list.sh,target=/usr/local/bin/repro-sources-list.sh \
   <<EOF
 #!/bin/bash
 set -euo pipefail
