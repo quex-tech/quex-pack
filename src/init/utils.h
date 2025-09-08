@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Quex Technologies
 #ifndef _UTILS_H_
 #define _UTILS_H_
 

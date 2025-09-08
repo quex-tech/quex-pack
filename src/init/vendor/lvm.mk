@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Quex Technologies
 LVM_VERSION := 2_03_32
 LVM_URL := https://github.com/lvmteam/lvm2/archive/refs/tags/v$(LVM_VERSION).tar.gz
 LVM_TAR_GZ := $(VENDOR_DOWNLOADS_DIR)/v$(LVM_VERSION).tar.gz

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Quex Technologies
 INTEL_DEB_BASE_URL := https://ppa.launchpadcontent.net/kobuk-team/tdx-attestation-release/ubuntu/pool/main
 
 INTEL_DEB_URLS := \

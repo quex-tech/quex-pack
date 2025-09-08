@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Quex Technologies
 #include "mkfs.h"
 #include "utils.h"
 #pragma GCC diagnostic push

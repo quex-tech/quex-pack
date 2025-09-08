@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Quex Technologies
 #ifndef _INTEGRITY_CRYPT_H_
 #define _INTEGRITY_CRYPT_H_
 

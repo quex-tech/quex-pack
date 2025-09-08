@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Quex Technologies
 #include "utils.h"
 #include <arpa/inet.h>
 #include <ctype.h>

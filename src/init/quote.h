@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Quex Technologies
 #ifndef _QUOTE_H_
 #define _QUOTE_H_
 

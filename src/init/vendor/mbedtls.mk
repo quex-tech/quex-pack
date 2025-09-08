@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Quex Technologies
 MBEDTLS_VERSION := 3.6.3
 MBEDTLS_TAR_BZ2 := $(VENDOR_DOWNLOADS_DIR)/mbedtls.tar.bz2
 MBEDTLS_TAR_BZ2_URL := https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-$(MBEDTLS_VERSION)/mbedtls-$(MBEDTLS_VERSION).tar.bz2

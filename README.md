@@ -47,3 +47,9 @@ Options:
   --builder-image IMAGE       use Docker IMAGE as UKI builder image
   --debug                     use non-minimal Linux kernel build to allow debug output to the console
 ```
+
+## License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
+
+See the [NOTICE](NOTICE) file for additional copyright and license information.

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025 Quex Technologies
 E2FS_VERSION := 1.47.1
 E2FS_URL := https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v$(E2FS_VERSION)/e2fsprogs-$(E2FS_VERSION).tar.gz
 E2FS_TAR_GZ := $(VENDOR_DOWNLOADS_DIR)/e2fsprogs-$(E2FS_VERSION).tar.gz
