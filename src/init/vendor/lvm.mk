@@ -11,8 +11,6 @@ lvm: $(LVM_STAMP)
 
 $(LVM_STAMP): $(LVM_SRC_DIR)
 	@cd $(LVM_SRC_DIR) && ./configure --prefix $(VENDOR_OUT_DIR)/usr \
-		--disable-shared \
-		--enable-static_link \
 		--disable-readline \
 		--disable-realtime \
 		--disable-use-lvmlockd \
@@ -31,7 +29,7 @@ $(LVM_STAMP): $(LVM_SRC_DIR)
 		--without-libnvme \
 		--without-systemd \
 		--without-udev
-	@$(MAKE) -C $(LVM_SRC_DIR) device-mapper
+	@$(MAKE) -C $(LVM_SRC_DIR) CFLAGS+=' -fPIC' device-mapper
 	@$(MAKE) -C $(LVM_SRC_DIR) install_device-mapper
 	@touch $@
 

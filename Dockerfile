@@ -174,7 +174,8 @@ EOF
 
 # Build init
 ARG INIT_CFLAGS=""
-ARG INIT_BIN_SHA256=754e8ad26b95506bef173c6ee9eda6897a1d8e74e24c19939d38912708429050
+ARG INIT_BIN_SHA256=1a4cd063cb373f0113589477913ba495b7656d96e76e7fa9987bf59b8bf4b227
+ARG LIBDEVMAPPER_SO_SHA256=b94e3b648b0aece4ab0abaf6346b0ac5eb418882720d306cdbaf09d6f4788af5
 ARG LIBTDX_ATTEST_SO_SHA256=d26f8ac5df799edc6bce92f7b45c46fe03cc3841ef64e542b7c2e7d44d789820
 COPY src/init /tmp/init
 RUN <<EOF
@@ -183,11 +184,13 @@ set -euo pipefail
 cd /tmp/init
 make clean
 make CFLAGS="$INIT_CFLAGS"
-sha256sum init vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so
+sha256sum init vendor/build/usr/lib/libdevmapper.so vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so
 sha256sum -c <<<"$INIT_BIN_SHA256  init
+$LIBDEVMAPPER_SO_SHA256  vendor/build/usr/lib/libdevmapper.so
 $LIBTDX_ATTEST_SO_SHA256  vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so"
 mkdir -p ${ROOTFS_DIR}/usr/lib ${ROOTFS_DIR}/usr/bin
 cp init ${ROOTFS_DIR}/
+cp -a vendor/build/usr/lib/libdevmapper.so* ${ROOTFS_DIR}/usr/lib/
 cp -a vendor/build/usr/lib/x86_64-linux-gnu ${ROOTFS_DIR}/usr/lib/
 rm -rf /tmp/init
 EOF
@@ -210,7 +213,7 @@ EOF
 
 # Finalize rootfs and verify its checksum
 COPY rootfs ${ROOTFS_DIR}
-ARG ROOTFS_CPIO_GZ_SHA256=9618e5df7a6c8e608cf1b766df32bc357af6665465f8424460100d3a2bb4156e
+ARG ROOTFS_CPIO_GZ_SHA256=08552bacc7e9b9a2bff6eb8e902893dd9a3c421631dba5303fb6fa762f264096
 RUN <<EOF
 #!/bin/bash
 set -euo pipefail
