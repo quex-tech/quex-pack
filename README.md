@@ -40,12 +40,32 @@ Options:
   -o, --output PATH           save resulting EFI file to PATH (default: ukernel.efi)
   --output-rootfs PATH        save initramfs to PATH (default: not saved)
   --output-kernel PATH        save Linux kernel to PATH (default: not saved)
+  --output-disk PATH          save workload disk image to PATH if --workload-destination disk (default: disk.img)
   --kernel-cmdline CMD        override kernel command-line parameters (default: console=ttynull or console=ttyS0 if --debug specified)
-  --init-args CMD             add extra arguments to init
+  --init-args INIT_ARGS       add extra arguments to init (see "Init arguments" section)
   --key-request-mask HEX      use HEX as the mask over TD Report for secret key derivation (default: 04030000c70000)
   --vault-mrenclave HEX       override Quex Vault enclave identity
   --builder-image IMAGE       use Docker IMAGE as UKI builder image
   --debug                     use non-minimal Linux kernel build to allow debug output to the console
+
+Init arguments:
+  Init arguments are expected in the "key1=value10:value11 key2=value20:value21" format.
+
+  Following arguments are supported:
+    integrity=<device>:<name>
+      Map the device to /dev/mapper/<name> with authenticated integrity control.
+
+    crypt=<device>:<name>
+      Map the device to /dev/mapper/<name> with authenticated integrity control and encryption.
+
+    mkfs=<device>:<fstype>:<options>
+      Make a filesystem on the device if there is none. Currently only ext4 is supported.
+      Example: mkfs=/dev/vda:ext4:metadata_csum,64bit,extent,huge_file,dir_index
+
+    mount=<source>:<target>:<fstype>:<flag1>,<flag2>,<flag3>,...
+      Mount source to target.
+      Supported flags: ro, rw, nosuid, noexec, sync, dirsync, mand, noatime, nodiratime, relatime, strictatime, lazytime.
+      Example: mount=/dev/vdb:/mnt/storage:ext4:ro,noexec
 ```
 
 ## License
