@@ -4,6 +4,12 @@
 set -eo pipefail
 
 default_builder_image="quex213/pack:0.0.4"
+default_kernel_cmdline_release="console=ttynull"
+default_kernel_cmdline_debug="console=ttyS0"
+default_workload_destination="initramfs"
+default_output_path="ukernel.efi"
+default_output_disk_path="disk.img"
+default_key_request_mask="04030000c70000"
 
 usage() {
   cat <<EOF
@@ -23,32 +29,63 @@ See containers-transports(5) (https://github.com/containers/image/blob/main/docs
 
 Options:
   -h, --help                  display this help text
-  --workload-destination MODE  where to put the workload container: initramfs | disk (default: initramfs)
+  --workload-destination MODE  where to put the workload container: initramfs | disk (default: $default_workload_destination)
                                 initramfs: container is unpacked into /opt/bundle of initramfs
                                 disk: container is saved as a separate .img file and mounted from /dev/vda using dm-verity
-  -o, --output PATH           save resulting EFI file to PATH (default: ukernel.efi)
+  -o, --output PATH           save resulting EFI file to PATH (default: $default_output_path)
   --output-rootfs PATH        save initramfs to PATH (default: not saved)
   --output-kernel PATH        save Linux kernel to PATH (default: not saved)
-  --kernel-cmdline CMD        override kernel command-line parameters (default: console=ttynull or console=ttyS0 if --debug specified)
-  --init-args CMD             add extra arguments to init
-  --key-request-mask HEX      use HEX as the mask over TD Report for secret key derivation (default: 04030000c70000)
+  --output-disk PATH          save workload disk image to PATH if --workload-destination disk (default: $default_output_disk_path)
+  --kernel-cmdline CMD        override kernel command-line parameters (default: $default_kernel_cmdline_release or $default_kernel_cmdline_debug if --debug specified)
+  --init-args INIT_ARGS       add extra arguments to init (see "Init arguments" section)
+  --key-request-mask HEX      use HEX as the mask over TD Report for secret key derivation (default: $default_key_request_mask)
   --vault-mrenclave HEX       override Quex Vault enclave identity
   --builder-image IMAGE       use Docker IMAGE as UKI builder image (default: $default_builder_image)
   --debug                     use non-minimal Linux kernel build to allow debug output to the console
+
+Init arguments:
+  Init arguments are expected in the "key1=value10:value11 key2=value20:value21" format.
+
+  Following arguments are supported:
+    integrity=<device>:<name>
+      Map the device to /dev/mapper/<name> with authenticated integrity control.
+
+    crypt=<device>:<name>
+      Map the device to /dev/mapper/<name> with authenticated integrity control and encryption.
+
+    mkfs=<device>:<fstype>:<options>
+      Make a filesystem on the device if there is none. Currently only ext4 is supported.
+      Example: mkfs=/dev/vda:ext4:metadata_csum,64bit,extent,huge_file,dir_index
+
+    mount=<source>:<target>:<fstype>:<flag1>,<flag2>,<flag3>,...
+      Mount source to target.
+      Supported flags: ro, rw, nosuid, noexec, sync, dirsync, mand, noatime, nodiratime, relatime, strictatime, lazytime.
+      Example: mount=/dev/vdb:/mnt/storage:ext4:ro,noexec
+
+License:
+  Licensed under the Apache License, Version 2.0.
+  You may obtain a copy of the License at:
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the LICENSE file distributed with this project for details.
+  See the NOTICE file for additional information.
 EOF
 }
 
 kernel_cmdline=""
-default_kernel_cmdline="console=ttynull"
+default_kernel_cmdline=$default_kernel_cmdline_release
 extra_init_args=""
 kernel_path="/var/linux/bzImage"
 builder_image=$default_builder_image
-workload_destination="initramfs"
-output_path="ukernel.efi"
-output_disk_path="disk.img"
+workload_destination=$default_workload_destination
+output_path=$default_output_path
+output_disk_path=$default_output_disk_path
 output_rootfs_path=""
 output_kernel_path=""
-key_request_mask="04030000c70000"
+key_request_mask=$default_key_request_mask
 vault_mrenclave="231c8240fb43d8ee81a813a3a3fb05e3b9f1ae9064fe4d8629cf691a58d74112"
 
 while true; do
@@ -118,7 +155,7 @@ while true; do
     ;;
   --debug)
     kernel_path="/var/linux/debug.bzImage"
-    default_kernel_cmdline="console=ttyS0"
+    default_kernel_cmdline=$default_kernel_cmdline_release_debug
     shift
     continue
     ;;
