@@ -13,7 +13,6 @@
 #define trace(...)
 #endif
 
-int load_binary(const char *path, void *out_struct, size_t size);
 int init_socket(uint16_t port);
 void write_hex(const uint8_t *bytes, size_t bytes_len, char *dest);
 int write_hex_to_file(const char *filename, uint8_t *bytes, size_t bytes_len);

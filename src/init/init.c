@@ -8,9 +8,11 @@
 #include "utils.h"
 #include <errno.h>
 #include <mbedtls/hkdf.h>
+#include <spawn.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mount.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -41,6 +43,13 @@ int init(int argc, char *argv[]) {
 	struct crypt_spec crypt_specs[MAX_DISKS] = {0};
 	size_t crypt_specs_len = 0;
 
+	umask(0077);
+	err = prctl(PR_SET_DUMPABLE, 0);
+	if (err) {
+		trace("prctl failed: %s\n", strerror(errno));
+		goto cleanup;
+	}
+
 	for (int i = 1; i < argc; i++) {
 		trace("argv[%d] = %s\n", i, argv[i]);
 
@@ -49,104 +58,117 @@ int init(int argc, char *argv[]) {
 			continue;
 		}
 
-		*eq = '\0';
-		const char *key = argv[i];
 		const char *value = eq + 1;
 
-		if (strcmp(key, "key_request_mask") == 0) {
+		if (strncmp(argv[i], "key_request_mask=", strlen("key_request_mask=")) == 0) {
 			key_request_mask = value;
 			continue;
 		}
 
-		if (strcmp(key, "vault_mrenclave") == 0) {
+		if (strncmp(argv[i], "vault_mrenclave=", strlen("vault_mrenclave=")) == 0) {
 			vault_mrenclave = value;
 			continue;
 		}
 
-		if (strcmp(key, "workload") == 0) {
+		if (strncmp(argv[i], "workload=", strlen("workload=")) == 0) {
+			if (strlen(value) > 192) {
+				trace("Workload path is too long\n");
+				err = -1;
+				goto cleanup;
+			}
 			workload_path = value;
 			continue;
 		}
 
-		if (strcmp(key, "integrity") == 0) {
+		if (strncmp(argv[i], "integrity=", strlen("integrity=")) == 0) {
 			if (integrity_specs_len >= MAX_DISKS) {
-				trace("too many disks\n");
-				return -1;
+				trace("Too many disks\n");
+				err = -1;
+				goto cleanup;
 			}
 			err = parse_integrity_spec((char *)value,
 			                           &integrity_specs[integrity_specs_len++]);
 			if (err) {
 				trace("parse_integrity_spec failed: %d\n", err);
-				return err;
+				goto cleanup;
 			}
 			continue;
 		}
 
-		if (strcmp(key, "crypt") == 0) {
+		if (strncmp(argv[i], "crypt=", strlen("crypt=")) == 0) {
 			if (crypt_specs_len >= MAX_DISKS) {
-				trace("too many disks\n");
-				return -1;
+				trace("Too many disks\n");
+				err = -1;
+				goto cleanup;
 			}
 			err = parse_crypt_spec((char *)value, &crypt_specs[crypt_specs_len++]);
 			if (err) {
 				trace("parse_crypt_spec failed: %d\n", err);
-				return err;
+				goto cleanup;
 			}
 			continue;
 		}
 
-		if (strcmp(key, "mkfs") == 0) {
+		if (strncmp(argv[i], "mkfs=", strlen("mkfs=")) == 0) {
 			if (mkfs_specs_len >= MAX_DISKS) {
-				trace("too many disks\n");
-				return -1;
+				trace("Too many disks\n");
+				err = -1;
+				goto cleanup;
 			}
 			err = parse_mkfs_spec((char *)value, &mkfs_specs[mkfs_specs_len++]);
 			if (err) {
 				trace("parse_mkfs_spec failed: %d\n", err);
-				return err;
+				goto cleanup;
 			}
 			continue;
 		}
 
-		if (strcmp(key, "mount") == 0) {
+		if (strncmp(argv[i], "mount=", strlen("mount=")) == 0) {
 			if (mount_specs_len >= MAX_DISKS) {
-				trace("too many disks\n");
-				return -1;
+				trace("Too many disks\n");
+				err = -1;
+				goto cleanup;
 			}
 			err = parse_mount_spec((char *)value, &mount_specs[mount_specs_len++]);
 			if (err) {
 				trace("parse_mount_spec failed: %d\n", err);
-				return err;
+				goto cleanup;
 			}
 			continue;
 		}
 	}
-
-	if ((err = mount("devtmpfs", "/dev", "devtmpfs", 0, NULL)) != 0) {
+	err = mount("devtmpfs", "/dev", "devtmpfs", MS_NOSUID | MS_NOEXEC, "mode=0755");
+	if (err) {
 		trace("mount /dev failed: %s\n", strerror(errno));
-		return err;
+		goto cleanup;
 	}
-	if ((err = mount("none", "/proc", "proc", 0, NULL)) != 0) {
+	err = mount("none", "/proc", "proc", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
+	if (err) {
 		trace("mount /proc failed: %s\n", strerror(errno));
-		return err;
+		goto cleanup;
 	}
-	if ((err = mount("none", "/sys", "sysfs", 0, NULL)) != 0) {
+	err = mount("none", "/sys", "sysfs", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
+	if (err) {
 		trace("mount /sys failed: %s\n", strerror(errno));
-		return err;
+		goto cleanup;
 	}
-	if ((err = mount("none", "/sys/kernel/config", "configfs", 0, NULL)) != 0) {
+	err =
+	    mount("none", "/sys/kernel/config", "configfs", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
+	if (err) {
 		trace("mount /sys/kernel/config failed: %s\n", strerror(errno));
-		return err;
+		goto cleanup;
 	}
-	if ((err = mount("none", "/sys/fs/cgroup", "cgroup2", 0, NULL)) != 0) {
+	err = mount("none", "/sys/fs/cgroup", "cgroup2", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
+	if (err) {
 		trace("mount /sys/fs/cgroup failed: %s\n", strerror(errno));
-		return err;
+		goto cleanup;
 	}
 
 	uint8_t sk[32] = {0};
-	if ((err = get_sk(sk, key_request_mask, vault_mrenclave)) != 0) {
+	err = get_sk(sk, key_request_mask, vault_mrenclave);
+	if (err) {
 		trace("get_sk failed: %d\n", err);
-		return err;
+		goto cleanup;
 	}
 
 	unsigned char prk[MBEDTLS_MD_MAX_SIZE];
@@ -156,7 +178,7 @@ int init(int argc, char *argv[]) {
 	err = mbedtls_hkdf_extract(md, hkdf_salt, sizeof(hkdf_salt), sk, sizeof(sk), prk);
 	if (err) {
 		trace("mbedtls_hkdf_extract failed: %d\n", err);
-		return err;
+		goto cleanup;
 	}
 
 	for (size_t i = 0; i < integrity_specs_len; i++) {
@@ -169,7 +191,7 @@ int init(int argc, char *argv[]) {
 		                          sizeof(integrity_sk));
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
-			return err;
+			goto integrity_cleanup;
 		}
 
 		uint8_t integrity_journal_crypt_sk[32] = {0};
@@ -183,14 +205,21 @@ int init(int argc, char *argv[]) {
 		    sizeof(integrity_journal_crypt_sk));
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
-			return err;
+			goto integrity_cleanup;
 		}
 
 		err =
 		    setup_integrity(&integrity_specs[i], integrity_sk, integrity_journal_crypt_sk);
-		if (err != 0) {
+		if (err) {
 			trace("setup_integrity %s failed: %d\n", integrity_specs[i].dev, err);
-			return err;
+			goto integrity_cleanup;
+		}
+
+	integrity_cleanup:
+		mbedtls_platform_zeroize(integrity_sk, 32);
+		mbedtls_platform_zeroize(integrity_journal_crypt_sk, 32);
+		if (err) {
+			goto cleanup;
 		}
 	}
 
@@ -200,10 +229,10 @@ int init(int argc, char *argv[]) {
 		snprintf(crypt_sk_info, sizeof(crypt_sk_info), "crypt=%s:%s", crypt_specs[i].dev,
 		         crypt_specs[i].name);
 		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_sk_info,
-		                          sizeof(crypt_sk_info), crypt_sk, sizeof(crypt_sk));
+		                          strlen(crypt_sk_info), crypt_sk, sizeof(crypt_sk));
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
-			return err;
+			goto crypt_cleanup;
 		}
 
 		uint8_t crypt_journal_crypt_sk[32] = {0};
@@ -211,11 +240,11 @@ int init(int argc, char *argv[]) {
 		snprintf(crypt_journal_crypt_sk_info, sizeof(crypt_journal_crypt_sk_info),
 		         "crypt:%s:%s:journal_crypt", crypt_specs[i].dev, crypt_specs[i].name);
 		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_journal_crypt_sk_info,
-		                          sizeof(crypt_journal_crypt_sk_info),
+		                          strlen(crypt_journal_crypt_sk_info),
 		                          crypt_journal_crypt_sk, sizeof(crypt_journal_crypt_sk));
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
-			return err;
+			goto crypt_cleanup;
 		}
 
 		uint8_t crypt_journal_mac_sk[32] = {0};
@@ -223,18 +252,26 @@ int init(int argc, char *argv[]) {
 		snprintf(crypt_journal_mac_sk_info, sizeof(crypt_journal_mac_sk_info),
 		         "crypt:%s:%s:journal_mac", crypt_specs[i].dev, crypt_specs[i].name);
 		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_journal_mac_sk_info,
-		                          sizeof(crypt_journal_mac_sk_info), crypt_journal_mac_sk,
+		                          strlen(crypt_journal_mac_sk_info), crypt_journal_mac_sk,
 		                          sizeof(crypt_journal_mac_sk));
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
-			return err;
+			goto crypt_cleanup;
 		}
 
 		err = setup_crypt(&crypt_specs[i], crypt_sk, crypt_journal_crypt_sk,
 		                  crypt_journal_mac_sk);
-		if (err != 0) {
+		if (err) {
 			trace("setup_crypt %s failed: %d\n", crypt_specs[i].dev, err);
-			return err;
+			goto crypt_cleanup;
+		}
+
+	crypt_cleanup:
+		mbedtls_platform_zeroize(crypt_sk, 32);
+		mbedtls_platform_zeroize(crypt_journal_crypt_sk, 32);
+		mbedtls_platform_zeroize(crypt_journal_mac_sk, 32);
+		if (err) {
+			goto cleanup;
 		}
 	}
 
@@ -242,55 +279,62 @@ int init(int argc, char *argv[]) {
 
 	for (size_t i = 0; i < mkfs_specs_len; i++) {
 		err = mkfs(&mkfs_specs[i]);
-		if (err != 0) {
+		if (err) {
 			trace("mkfs %s failed: %d\n", mkfs_specs[i].dev, err);
-			return err;
+			goto cleanup;
 		}
 	}
 
 	for (size_t i = 0; i < mount_specs_len; i++) {
 		err = mount(mount_specs[i].source, mount_specs[i].target, mount_specs[i].fstype,
 		            mount_specs[i].flags, NULL);
-		if (err != 0) {
+		if (err) {
 			trace("mount %s failed: %s\n", mount_specs[i].target, strerror(errno));
-			return err;
+			goto cleanup;
 		}
 	}
 
 	char config_path[256] = {0};
-	strcat(config_path, workload_path);
-	strcat(config_path, "/config.json");
-	if ((err = copy_file(config_path, BUNDLE_CONFIG_PATH)) != 0) {
+	snprintf(config_path, sizeof(config_path), "%s/config.json", workload_path);
+	err = copy_file(config_path, BUNDLE_CONFIG_PATH);
+	if (err) {
 		trace("Cannot copy %s to %s\n", config_path, BUNDLE_CONFIG_PATH);
-		return err;
+		goto cleanup;
 	}
 
 	char key_env_var[] = SECRET_KEY_TEMPLATE;
 	write_hex(sk, sizeof(sk), key_env_var + strlen("TD_SECRET_KEY="));
 	replace_in_file(BUNDLE_CONFIG_PATH, SECRET_KEY_TEMPLATE, key_env_var);
+	mbedtls_platform_zeroize(key_env_var, sizeof(SECRET_KEY_TEMPLATE));
 
-	pid_t pid = vfork();
+	const char *exec_argv[] = {"crun",        "run",      "--no-pivot",       "--bundle",
+	                           workload_path, "--config", BUNDLE_CONFIG_PATH, "app",
+	                           NULL};
+	const char *exec_envp[] = {NULL};
 
-	if (pid == 0) {
-		const char *exec_argv[] = {"crun",       "run",      "--no-pivot",       "--bundle",
-		                           workload_path, "--config", BUNDLE_CONFIG_PATH, "app",
-		                           NULL};
-		const char *exec_envp[] = {NULL};
-		execve("/usr/bin/crun", (char *const *)exec_argv, (char *const *)exec_envp);
-	} else if (pid > 0) {
-		trace("Waiting for crun to exit...\n");
-		int status;
-		if (waitpid(pid, &status, 0) == 0) {
-			trace("crun exited with status %d\n", status);
-		} else {
-			trace("waitpid failed: %s\n", strerror(errno));
-		}
-	} else {
-		trace("vfork failed: %s\n", strerror(errno));
-		return -1;
+	pid_t pid;
+	err = posix_spawn(&pid, "/usr/bin/crun", NULL, NULL, (char *const *)exec_argv,
+	                  (char *const *)exec_envp);
+	if (err) {
+		trace("posix_spawn failed: %s\n", strerror(err));
+		goto cleanup;
 	}
 
-	return 0;
+	trace("Waiting for crun to exit...\n");
+
+	int status;
+	err = waitpid(pid, &status, 0);
+	if (err) {
+		trace("waitpid failed: %s\n", strerror(errno));
+		goto cleanup;
+	}
+
+	trace("crun exited with status %d\n", status);
+
+cleanup:
+	mbedtls_platform_zeroize(sk, 32);
+	mbedtls_platform_zeroize(prk, MBEDTLS_MD_MAX_SIZE);
+	return err;
 }
 
 int main(int argc, char *argv[]) {

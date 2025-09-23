@@ -13,21 +13,6 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-int load_binary(const char *path, void *out, size_t size) {
-	FILE *fp = fopen(path, "rb");
-	if (!fp) {
-		return -1;
-	}
-
-	if (fread(out, 1, size, fp) != size) {
-		fclose(fp);
-		return -1;
-	}
-
-	fclose(fp);
-	return 0;
-}
-
 int init_socket(uint16_t port) {
 	union {
 		struct sockaddr_in in;
