@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
 #include "ec.h"
+#include "utils.h"
 #include <mbedtls/asn1write.h>
 #include <mbedtls/error.h>
 #include <mbedtls/oid.h>
@@ -11,6 +12,8 @@
 #pragma GCC diagnostic ignored "-Wsign-conversion"
 
 // copied from vendor/src/mbedtls-3.6.3/library/ecdsa.c
+// Copyright The Mbed TLS Contributors
+// SPDX-License-Identifier: Apache-2.0
 static int ecdsa_signature_to_asn1(const mbedtls_mpi *r, const mbedtls_mpi *s, unsigned char *sig,
                                    size_t sig_size, size_t *slen) {
 	int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
@@ -36,25 +39,28 @@ static int ecdsa_signature_to_asn1(const mbedtls_mpi *r, const mbedtls_mpi *s, u
 }
 
 int rs_to_der(uint8_t rs[64], uint8_t *der, size_t der_size, size_t *olen) {
-	int ret = -1;
+	int ret = 0;
 	mbedtls_mpi r;
 	mbedtls_mpi s;
 
 	mbedtls_mpi_init(&r);
 	mbedtls_mpi_init(&s);
 
-	if ((ret = read_raw_sig(rs, &r, &s)) != 0) {
-		goto cleanup;
+	int err = read_raw_sig(rs, &r, &s);
+	if (err) {
+		trace("read_raw_sig failed: %d\n", err);
+		ret = -1;
 	}
 
-	if ((ret = ecdsa_signature_to_asn1(&r, &s, der, der_size, olen))) {
-		goto cleanup;
+	err = ecdsa_signature_to_asn1(&r, &s, der, der_size, olen);
+	if (err) {
+		trace("ecdsa_signature_to_asn1 failed: %d\n", err);
+		ret = -1;
 	}
 
-	ret = 0;
-cleanup:
 	mbedtls_mpi_free(&s);
 	mbedtls_mpi_free(&r);
+
 	return ret;
 }
 

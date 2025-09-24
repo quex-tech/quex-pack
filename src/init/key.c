@@ -7,6 +7,7 @@
 #include "utils.h"
 #include <arpa/inet.h>
 #include <errno.h>
+#include <mbedtls/constant_time.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/hkdf.h>
 #include <stdbool.h>
@@ -24,7 +25,6 @@ int get_sk(uint8_t sk[32]) {
 
 #define PORT 24516
 #define ROOT_PEM_PATH "/etc/root.pem"
-#define ROOT_PEM_SIZE 964
 
 typedef struct _ecc_context {
 	mbedtls_ecp_group grp;
@@ -115,9 +115,8 @@ cleanup:
 
 static int decrypt_sk(ecc_context *ctx, mbedtls_mpi *ephemeral_sk, uint8_t ciphertext[QUEX_CT_LEN],
                       uint8_t sk[32]) {
-	int ret = -1;
-	uint8_t ikm[130];
-	uint8_t symmetric_key[32];
+	uint8_t ikm[130] = {0};
+	uint8_t symmetric_key[32] = {0};
 	const unsigned char salt[] = "quex_salt";
 	mbedtls_ecp_point ephemeral_pk;
 	mbedtls_ecp_point dh;
@@ -127,71 +126,85 @@ static int decrypt_sk(ecc_context *ctx, mbedtls_mpi *ephemeral_sk, uint8_t ciphe
 	mbedtls_ecp_point_init(&dh);
 	mbedtls_gcm_init(&gcm);
 
-	if ((ret = read_raw_pk(&(ctx->grp), ciphertext, &ephemeral_pk)) != 0) {
-		trace("read_raw_pk failed: %d", ret);
-		goto cleanup;
+	bool success = true;
+
+	int err = read_raw_pk(&(ctx->grp), ciphertext, &ephemeral_pk);
+	if (err) {
+		trace("read_raw_pk failed: %d\n", err);
+		success = false;
 	}
 
-	if ((ret = mbedtls_ecp_mul(&(ctx->grp), &dh, ephemeral_sk, &ephemeral_pk,
-	                           mbedtls_ctr_drbg_random, &(ctx->drbg))) != 0) {
-		trace("mbedtls_ecp_mul failed: %d", ret);
-		goto cleanup;
+	err = mbedtls_ecp_mul(&(ctx->grp), &dh, ephemeral_sk, &ephemeral_pk,
+	                      mbedtls_ctr_drbg_random, &(ctx->drbg));
+	if (err) {
+		trace("mbedtls_ecp_mul failed: %d\n", err);
+		success = false;
 	}
 
 	size_t olen;
-	if ((ret = mbedtls_ecp_point_write_binary(&(ctx->grp), &ephemeral_pk,
-	                                          MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, ikm,
-	                                          sizeof(ikm))) != 0) {
-		trace("mbedtls_ecp_point_write_binary(ephemeral_pk) failed: %d", ret);
-		goto cleanup;
-	}
-	if ((ret = mbedtls_ecp_point_write_binary(&(ctx->grp), &dh, MBEDTLS_ECP_PF_UNCOMPRESSED,
-	                                          &olen, ikm + olen, sizeof(ikm) - olen)) != 0) {
-		trace("mbedtls_ecp_point_write_binary(dh) failed: %d", ret);
-		goto cleanup;
+	err = mbedtls_ecp_point_write_binary(&(ctx->grp), &ephemeral_pk,
+	                                     MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, ikm, sizeof(ikm));
+	if (err) {
+		trace("mbedtls_ecp_point_write_binary(ephemeral_pk) failed: %d\n", err);
+		success = false;
 	}
 
-	if ((ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), salt,
-	                        9,                // salt
-	                        ikm, sizeof(ikm), // ikm
-	                        NULL, 0,          // info
-	                        symmetric_key, 32 // okm
-	                        )) != 0) {
-		trace("mbedtls_hkdf failed: %d", ret);
-		goto cleanup;
+	err = mbedtls_ecp_point_write_binary(&(ctx->grp), &dh, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen,
+	                                     ikm + olen, sizeof(ikm) - olen);
+	if (err) {
+		trace("mbedtls_ecp_point_write_binary(dh) failed: %d\n", err);
+		success = false;
 	}
 
-	if ((ret = mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, symmetric_key, 128)) != 0) {
-		trace("mbedtls_gcm_setkey failed: %d", ret);
-		goto cleanup;
+	err = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), salt,
+	                   9,                // salt
+	                   ikm, sizeof(ikm), // ikm
+	                   NULL, 0,          // info
+	                   symmetric_key, 32 // okm
+	);
+	if (err) {
+		trace("mbedtls_hkdf failed: %d\n", err);
+		success = false;
 	}
 
-	if ((ret = mbedtls_gcm_auth_decrypt(&gcm, 32, ciphertext + 64, 12, NULL, 0, ciphertext + 80,
-	                                    16, ciphertext + 96, sk)) != 0) {
-		trace("mbedtls_gcm_auth_decrypt failed: %d", ret);
-		goto cleanup;
+	err = mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, symmetric_key, 128);
+	if (err) {
+		trace("mbedtls_gcm_setkey failed: %d\n", err);
+		success = false;
 	}
 
-	ret = 0;
-cleanup:
+	err = mbedtls_gcm_auth_decrypt(&gcm, 32, ciphertext + 64, 12, NULL, 0, ciphertext + 80, 16,
+	                               ciphertext + 96, sk);
+	if (err) {
+		trace("mbedtls_gcm_auth_decrypt failed: %d\n", err);
+		success = false;
+	}
+
 	mbedtls_platform_zeroize(ikm, sizeof(ikm));
 	mbedtls_platform_zeroize(symmetric_key, sizeof(symmetric_key));
 	mbedtls_gcm_free(&gcm);
 	mbedtls_ecp_point_free(&ephemeral_pk);
 	mbedtls_ecp_point_free(&dh);
-	return ret;
+
+	return success ? 0 : -1;
 }
 
 static quoted_td_key_response_t *recv_response(int client) {
 	quoted_td_key_response_t response_part;
-	if (recv(client, &response_part, sizeof(quoted_td_key_response_t), MSG_WAITALL) !=
-	    sizeof(quoted_td_key_response_t)) {
-		trace("Could not recv quoted_td_key_response: %s\n", strerror(errno));
+	ssize_t received =
+	    recv(client, &response_part, sizeof(quoted_td_key_response_t), MSG_WAITALL);
+	if (received != sizeof(quoted_td_key_response_t)) {
+		if (received < 0) {
+			trace("Could not recv quoted_td_key_response: %s\n", strerror(errno));
+		} else {
+			trace("Could not recv quoted_td_key_response: expected %zu, got %zd\n",
+			      sizeof(quoted_td_key_response_t), received);
+		}
 		return NULL;
 	}
 
-	if (!is_quote_well_formed(&response_part.quote)) {
-		trace("Quote is ill-formed\n");
+	if (!is_quote_header_well_formed(&response_part.quote)) {
+		trace("Quote header is ill-formed\n");
 		return NULL;
 	}
 
@@ -208,15 +221,26 @@ static quoted_td_key_response_t *recv_response(int client) {
 	memcpy(response, &response_part, sizeof(quoted_td_key_response_t));
 
 	trace("Receiving %d bytes of quote signature...\n", response_part.quote.signature_data_len);
-	if (recv(client, (uint8_t *)response + sizeof(quoted_td_key_response_t),
-	         response_part.quote.signature_data_len,
-	         MSG_WAITALL) != response_part.quote.signature_data_len) {
-		trace("Could not recv quote signature: %s\n", strerror(errno));
+	received = recv(client, (uint8_t *)response + sizeof(quoted_td_key_response_t),
+	                        response_part.quote.signature_data_len, MSG_WAITALL);
+	if (received != response_part.quote.signature_data_len) {
+		if (received < 0) {
+			trace("Could not recv quote signature: %s\n", strerror(errno));
+		} else {
+			trace("Could not recv quote signature: expected %u, got %zd\n",
+			      response_part.quote.signature_data_len, received);
+		}
 		free(response);
 		return NULL;
 	}
 
 	trace("Received %d bytes of quote signature\n", response_part.quote.signature_data_len);
+
+	if (!is_quote_well_formed(&(response->quote))) {
+		trace("Quote is ill-formed\n");
+		free(response);
+		return NULL;
+	}
 
 	return response;
 }
@@ -229,12 +253,13 @@ static int compare_masked(sgx_report2_t *first, sgx_report2_t *second,
 	memcpy(&second_masked, second, sizeof(sgx_report2_t));
 	apply_mask(&first_masked, mask);
 	apply_mask(&second_masked, mask);
-	return memcmp(&first_masked, &second_masked, sizeof(sgx_report2_t));
+	return mbedtls_ct_memcmp(&first_masked, &second_masked, sizeof(sgx_report2_t));
 }
 
 int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_mrenclave_hex) {
 	int ret = -1;
 	int sock = -1;
+	uint8_t *p_quote_buf = NULL;
 
 	ecc_context ctx;
 	if ((ret = init_ecc_context(&ctx)) != 0) {
@@ -305,27 +330,29 @@ int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_m
 			goto cleanup_iteration;
 		}
 
-		if (memcmp(&(response->msg.mask), &key_request.mask,
-		           sizeof(td_key_request_mask_t)) != 0) {
+		got_sk = true;
+
+		if (mbedtls_ct_memcmp(&(response->msg.mask), &key_request.mask,
+		                      sizeof(td_key_request_mask_t)) != 0) {
 			trace("Masks do not match\n");
-			goto cleanup_iteration;
+			got_sk = false;
 		}
 
 		if (compare_masked(&(response->msg.tdreport), &key_request.tdreport,
 		                   &key_request.mask) != 0) {
 			trace("Masked reports do not match\n");
-			goto cleanup_iteration;
+			got_sk = false;
 		}
 
-		if (memcmp(&(response->quote.report_body.mr_enclave), &mr_enclave,
-		           sizeof(sgx_measurement_t)) != 0) {
+		if (mbedtls_ct_memcmp(&(response->quote.report_body.mr_enclave), &mr_enclave,
+		                      sizeof(sgx_measurement_t)) != 0) {
 			trace("Wrong mr_enclave\n");
-			goto cleanup_iteration;
+			got_sk = false;
 		}
 
 		if ((ret = verify_quote(&(response->quote), &root_crt)) != 0) {
 			trace("Invalid quote: %d\n", ret);
-			goto cleanup_iteration;
+			got_sk = false;
 		}
 
 		unsigned char msg_hash[32];
@@ -333,22 +360,21 @@ int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_m
 		                      (const unsigned char *)&(response->msg),
 		                      sizeof(response->msg), msg_hash)) != 0) {
 			trace("mbedtls_md failed: %d\n", ret);
-			goto cleanup_iteration;
+			got_sk = false;
 		}
 
-		if (memcmp(&(response->quote.report_body.report_data), msg_hash,
-		           sizeof(msg_hash)) != 0) {
+		if (mbedtls_ct_memcmp(&(response->quote.report_body.report_data), msg_hash,
+		                      sizeof(msg_hash)) != 0) {
 			trace("Quote report data does not contain message hash\n");
-			goto cleanup_iteration;
+			got_sk = false;
 		}
 
 		if ((ret = decrypt_sk(&ctx, &ephemeral_sk, response->msg.ciphertext, sk)) != 0) {
 			trace("decrypt_sk failed: %d\n", ret);
-			goto cleanup_iteration;
+			got_sk = false;
 		}
 
-		got_sk = true;
-		trace("Successfully got the secret key\n");
+		trace("Successfully got the secret key: %d\n", got_sk);
 
 	cleanup_iteration:
 		mbedtls_mpi_free(&ephemeral_sk);
@@ -371,7 +397,6 @@ int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_m
 	}
 
 	tdx_uuid_t selected_att_key_id = {0};
-	uint8_t *p_quote_buf = NULL;
 	uint32_t quote_size = 0;
 	if ((ret = tdx_att_get_quote(&report_data, NULL, 0, &selected_att_key_id, &p_quote_buf,
 	                             &quote_size, 0)) != TDX_ATTEST_SUCCESS) {
@@ -386,6 +411,9 @@ int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_m
 
 	ret = 0;
 cleanup:
+	if (p_quote_buf != NULL) {
+		tdx_att_free_quote(p_quote_buf);
+	}
 	if (sock >= 0) {
 		close(sock);
 	}

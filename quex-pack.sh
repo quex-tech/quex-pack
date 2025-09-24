@@ -3,7 +3,7 @@
 # Copyright 2025 Quex Technologies
 set -eo pipefail
 
-default_builder_image="quex213/pack:0.0.5"
+default_builder_image="quex213/pack:0.0.6"
 default_kernel_cmdline_release="console=ttynull"
 default_kernel_cmdline_debug="console=ttyS0"
 default_workload_destination="initramfs"
