@@ -222,7 +222,7 @@ static quoted_td_key_response_t *recv_response(int client) {
 
 	trace("Receiving %d bytes of quote signature...\n", response_part.quote.signature_data_len);
 	received = recv(client, (uint8_t *)response + sizeof(quoted_td_key_response_t),
-	                        response_part.quote.signature_data_len, MSG_WAITALL);
+	                response_part.quote.signature_data_len, MSG_WAITALL);
 	if (received != response_part.quote.signature_data_len) {
 		if (received < 0) {
 			trace("Could not recv quote signature: %s\n", strerror(errno));
@@ -235,12 +235,6 @@ static quoted_td_key_response_t *recv_response(int client) {
 	}
 
 	trace("Received %d bytes of quote signature\n", response_part.quote.signature_data_len);
-
-	if (!is_quote_well_formed(&(response->quote))) {
-		trace("Quote is ill-formed\n");
-		free(response);
-		return NULL;
-	}
 
 	return response;
 }

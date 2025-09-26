@@ -6,6 +6,6 @@
 #include "types.h"
 #include <sgx_report2.h>
 
-void apply_mask(sgx_report2_t *report, td_key_request_mask_t *mask);
+void apply_mask(sgx_report2_t *report, const td_key_request_mask_t *mask);
 
 #endif

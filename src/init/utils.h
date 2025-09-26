@@ -13,6 +13,8 @@
 #define trace(...)
 #endif
 
+#define sizeof_field(t, f) (sizeof(((t*)0)->f))
+
 int init_socket(uint16_t port);
 void write_hex(const uint8_t *bytes, size_t bytes_len, char *dest);
 int write_hex_to_file(const char *filename, uint8_t *bytes, size_t bytes_len);
