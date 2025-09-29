@@ -3,3 +3,4 @@
 .vscode
 *.img
 .vscode/
+*.bin

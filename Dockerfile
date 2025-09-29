@@ -183,6 +183,7 @@ RUN <<EOF
 set -euo pipefail
 cd /tmp/init
 make clean
+make test CFLAGS="$INIT_CFLAGS"
 make CFLAGS="$INIT_CFLAGS"
 sha256sum init vendor/build/usr/lib/libdevmapper.so vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so
 sha256sum -c <<<"$INIT_BIN_SHA256  init
