@@ -14,6 +14,7 @@
 #endif
 
 #define sizeof_field(t, f) (sizeof(((t*)0)->f))
+#define sizeof_array(a) (sizeof(a) / sizeof((a)[0]))
 
 int init_socket(uint16_t port);
 void write_hex(const uint8_t *bytes, size_t bytes_len, char *dest);
