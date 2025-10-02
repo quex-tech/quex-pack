@@ -19,27 +19,28 @@ static void test_read_write_raw_pk_roundtrip() {
 	must(mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0) == 0,
 	     "Failed to seed DRBG");
 
-	mbedtls_mpi d;
-	mbedtls_ecp_point Q;
-	mbedtls_mpi_init(&d);
-	mbedtls_ecp_point_init(&Q);
+	mbedtls_mpi sk;
+	mbedtls_ecp_point written_pk;
+	mbedtls_mpi_init(&sk);
+	mbedtls_ecp_point_init(&written_pk);
 
-	must(mbedtls_ecp_gen_keypair(&grp, &d, &Q, mbedtls_ctr_drbg_random, &ctr_drbg) == 0,
+	must(mbedtls_ecp_gen_keypair(&grp, &sk, &written_pk, mbedtls_ctr_drbg_random, &ctr_drbg) ==
+	         0,
 	     "Failed to generate keypair");
 
 	uint8_t raw_pk[64];
-	must(write_raw_pk(&grp, &Q, raw_pk) == 0, "write_raw_pk must succeed");
+	must(write_raw_pk(&grp, &written_pk, raw_pk) == 0, "write_raw_pk must succeed");
 
-	mbedtls_ecp_point Q2;
-	mbedtls_ecp_point_init(&Q2);
-	must(read_raw_pk(&grp, raw_pk, &Q2) == 0, "read_raw_pk must succeed");
+	mbedtls_ecp_point read_pk;
+	mbedtls_ecp_point_init(&read_pk);
+	must(read_raw_pk(&grp, raw_pk, &read_pk) == 0, "read_raw_pk must succeed");
 
-	must(mbedtls_ecp_point_cmp(&Q, &Q2) == 0,
+	must(mbedtls_ecp_point_cmp(&written_pk, &read_pk) == 0,
 	     "Roundtrip write_raw_pk/read_raw_pk must preserve the point");
 
-	mbedtls_ecp_point_free(&Q2);
-	mbedtls_ecp_point_free(&Q);
-	mbedtls_mpi_free(&d);
+	mbedtls_ecp_point_free(&read_pk);
+	mbedtls_ecp_point_free(&written_pk);
+	mbedtls_mpi_free(&sk);
 	mbedtls_ecp_group_free(&grp);
 	mbedtls_ctr_drbg_free(&ctr_drbg);
 	mbedtls_entropy_free(&entropy);
