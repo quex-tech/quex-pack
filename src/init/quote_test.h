@@ -2,6 +2,8 @@
 // Copyright 2025 Quex Technologies
 #include "quote.h"
 #include "test.h"
+#include <sgx_quote_3.h>
+#include <stdlib.h>
 
 #define INTEL_SGX_VENDOR_ID                                                                        \
 	{                                                                                          \
@@ -91,6 +93,76 @@ static void test_is_quote_header_well_formed_wrong_signature_data_len() {
 	}
 }
 
+sgx_quote3_t *read_quote(const char *filename, size_t *size_out) {
+	FILE *f = fopen(filename, "rb");
+	if (!f) {
+		perror("fopen");
+		return NULL;
+	}
+
+	if (fseek(f, 0, SEEK_END) != 0) {
+		perror("fseek");
+		fclose(f);
+		return NULL;
+	}
+
+	long pos = ftell(f);
+	if (pos < 0) {
+		perror("ftell");
+		fclose(f);
+		return NULL;
+	}
+
+	size_t size = (size_t)pos;
+	rewind(f);
+
+	sgx_quote3_t *buffer = malloc(size);
+	if (!buffer) {
+		perror("malloc");
+		fclose(f);
+		return NULL;
+	}
+
+	size_t read = fread(buffer, 1, size, f);
+	if (read != (size_t)size) {
+		perror("fread");
+		free(buffer);
+		fclose(f);
+		return NULL;
+	}
+
+	fclose(f);
+
+	if (size_out) {
+		*size_out = (size_t)size;
+	}
+
+	return buffer;
+}
+
+static void test_verify_quote_valid() {
+	size_t quote_len;
+	sgx_quote3_t *quote = read_quote("./test_data/quote.dat", &quote_len);
+	must(quote, "Could not read quote");
+
+	mbedtls_x509_crt root_crt;
+	mbedtls_x509_crt_init(&root_crt);
+	int err = mbedtls_x509_crt_parse_file(&root_crt, "./test_data/root.pem");
+	must(err == 0, "Could not load root certificate");
+
+	if (!quote || err) {
+		goto cleanup;
+	}
+
+	must(verify_quote(quote, &root_crt) == 0, "Valid quote must pass verification");
+
+cleanup:
+	if (quote) {
+		free(quote);
+	}
+	mbedtls_x509_crt_free(&root_crt);
+}
+
 static void test_quote() {
 	test_is_quote_header_well_formed_correct();
 	test_is_quote_header_well_formed_wrong_version();
@@ -98,4 +170,5 @@ static void test_quote() {
 	test_is_quote_header_well_formed_wrong_att_key_data();
 	test_is_quote_header_well_formed_wrong_vendor();
 	test_is_quote_header_well_formed_wrong_signature_data_len();
+	test_verify_quote_valid();
 }
