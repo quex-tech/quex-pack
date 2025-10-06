@@ -3,14 +3,20 @@
 #include "test.h"
 #include "der_test.h"
 #include "ec_test.h"
+#include "integrity_crypt_test.h"
+#include "mkfs_test.h"
+#include "mount_test.h"
 #include "quote_test.h"
 #include "report_test.h"
 
 int main() {
-	test_report();
-	test_quote();
-	test_ec();
 	test_der();
+	test_ec();
+	test_integrity_crypt();
+	test_mkfs();
+	test_mount();
+	test_quote();
+	test_report();
 
 	printf("Passed: %d, Failed: %d\n", passed_count, failed_count);
 
