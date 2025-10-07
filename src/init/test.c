@@ -8,6 +8,7 @@
 #include "mount_test.h"
 #include "quote_test.h"
 #include "report_test.h"
+#include "utils_test.h"
 
 int main() {
 	test_der();
@@ -17,6 +18,7 @@ int main() {
 	test_mount();
 	test_quote();
 	test_report();
+	test_utils();
 
 	printf("Passed: %d, Failed: %d\n", passed_count, failed_count);
 
