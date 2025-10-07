@@ -1,0 +1,6 @@
+*.o
+*.d
+.*-stamp
+src/init/vendor/src
+src/init/vendor/build
+src/init/init
