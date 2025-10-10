@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
+#define _GNU_SOURCE
 #include "test.h"
 #include "der_test.h"
 #include "ec_test.h"
 #include "integrity_crypt_test.h"
+#include "key_test.h"
 #include "mkfs_test.h"
 #include "mount_test.h"
 #include "quote_test.h"
@@ -14,6 +16,7 @@ int main() {
 	test_der();
 	test_ec();
 	test_integrity_crypt();
+	test_key();
 	test_mkfs();
 	test_mount();
 	test_quote();

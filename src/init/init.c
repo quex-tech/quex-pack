@@ -5,8 +5,10 @@
 #include "key.h"
 #include "mkfs.h"
 #include "mount.h"
+#include "tdx.h"
 #include "utils.h"
 #include <errno.h>
+#include <mbedtls/entropy.h>
 #include <mbedtls/hkdf.h>
 #include <spawn.h>
 #include <stdlib.h>
@@ -21,6 +23,8 @@
 	"TD_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 #define BUNDLE_CONFIG_PATH "/etc/bundle_config.json"
+#define ROOT_PEM_PATH "/etc/root.pem"
+#define QUOTE_PATH "/var/data/quote.txt"
 
 #define MAX_DISKS 8
 
@@ -267,8 +271,15 @@ int init(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
+	const struct tdx_iface tdx_ops = {
+	    .get_quote = tdx_att_get_quote,
+	    .free_quote = tdx_att_free_quote,
+	    .get_report = tdx_att_get_report,
+	};
+
 	uint8_t sk[32] = {0};
-	err = get_sk(sk, parameters.key_request_mask, parameters.vault_mrenclave);
+	err = get_sk(sk, parameters.key_request_mask, parameters.vault_mrenclave, ROOT_PEM_PATH,
+	             QUOTE_PATH, &tdx_ops, mbedtls_entropy_func);
 	if (err) {
 		trace("get_sk failed: %d\n", err);
 		goto cleanup;

@@ -3,6 +3,7 @@
 #include "ec.h"
 #include "quote.h"
 #include "report.h"
+#include "tdx.h"
 #include "types.h"
 #include "utils.h"
 #include <arpa/inet.h>
@@ -16,22 +17,14 @@
 #include <tdx_attest.h>
 #include <unistd.h>
 
-#ifdef SKIP_KEY
-int get_sk(uint8_t sk[32]) {
-	memset(sk, 1, 32);
-	return 0;
-}
-#else
-
 #define PORT 24516
-#define ROOT_PEM_PATH "/etc/root.pem"
 
 typedef struct _ecc_context {
 	mbedtls_ecp_group grp;
 	mbedtls_ctr_drbg_context drbg;
 } ecc_context;
 
-static int init_ecc_context(ecc_context *ctx) {
+static int init_ecc_context(ecc_context *ctx, int (*f_entropy)(void *, unsigned char *, size_t)) {
 	mbedtls_entropy_context entropy;
 	int ret = -1;
 
@@ -44,8 +37,7 @@ static int init_ecc_context(ecc_context *ctx) {
 		goto cleanup;
 	}
 	const unsigned char pers[] = "quex_init";
-	if (mbedtls_ctr_drbg_seed(&(ctx->drbg), mbedtls_entropy_func, &entropy, pers,
-	                          sizeof(pers)) != 0) {
+	if (mbedtls_ctr_drbg_seed(&(ctx->drbg), f_entropy, &entropy, pers, sizeof(pers)) != 0) {
 		trace("mbedtls_ctr_drbg_seed failed\n");
 		goto cleanup;
 	}
@@ -250,13 +242,15 @@ static int compare_masked(sgx_report2_t *first, sgx_report2_t *second,
 	return mbedtls_ct_memcmp(&first_masked, &second_masked, sizeof(sgx_report2_t));
 }
 
-int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_mrenclave_hex) {
+int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_mrenclave_hex,
+           const char *root_pem_path, const char *quote_path, const struct tdx_iface *tdx,
+           int (*f_entropy)(void *, unsigned char *, size_t)) {
 	int ret = -1;
 	int sock = -1;
 	uint8_t *p_quote_buf = NULL;
 
 	ecc_context ctx;
-	if ((ret = init_ecc_context(&ctx)) != 0) {
+	if ((ret = init_ecc_context(&ctx, f_entropy)) != 0) {
 		trace("init_ecc_context failed: %d\n", ret);
 		goto cleanup;
 	}
@@ -277,8 +271,8 @@ int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_m
 
 	mbedtls_x509_crt root_crt;
 	mbedtls_x509_crt_init(&root_crt);
-	if ((ret = mbedtls_x509_crt_parse_file(&root_crt, ROOT_PEM_PATH)) != 0) {
-		trace("Could not load root certificate %s: %d\n", ROOT_PEM_PATH, ret);
+	if ((ret = mbedtls_x509_crt_parse_file(&root_crt, root_pem_path)) != 0) {
+		trace("Could not load root certificate %s: %d\n", root_pem_path, ret);
 		goto cleanup;
 	}
 
@@ -308,8 +302,7 @@ int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_m
 			goto cleanup_iteration;
 		}
 
-		if ((ret =
-		         tdx_att_get_report(&report_data, (tdx_report_t *)&key_request.tdreport)) !=
+		if ((ret = tdx->get_report(&report_data, (tdx_report_t *)&key_request.tdreport)) !=
 		    TDX_ATTEST_SUCCESS) {
 			trace("tdx_att_get_report failed: %d\n", ret);
 			goto cleanup_iteration;
@@ -384,29 +377,31 @@ int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_m
 		goto cleanup;
 	}
 
-	if ((ret = tdx_att_get_report(&report_data, (tdx_report_t *)&key_request.tdreport)) !=
+	if ((ret = tdx->get_report(&report_data, (tdx_report_t *)&key_request.tdreport)) !=
 	    TDX_ATTEST_SUCCESS) {
 		trace("tdx_att_get_report failed: %d\n", ret);
 		goto cleanup;
 	}
 
-	tdx_uuid_t selected_att_key_id = {0};
-	uint32_t quote_size = 0;
-	if ((ret = tdx_att_get_quote(&report_data, NULL, 0, &selected_att_key_id, &p_quote_buf,
-	                             &quote_size, 0)) != TDX_ATTEST_SUCCESS) {
-		trace("tdx_att_get_quote failed: %d\n", ret);
-		goto cleanup;
-	}
+	if (quote_path) {
+		tdx_uuid_t selected_att_key_id = {0};
+		uint32_t quote_size = 0;
+		if ((ret = tdx->get_quote(&report_data, NULL, 0, &selected_att_key_id, &p_quote_buf,
+		                          &quote_size, 0)) != TDX_ATTEST_SUCCESS) {
+			trace("tdx_att_get_quote failed: %d\n", ret);
+			goto cleanup;
+		}
 
-	if ((ret = write_hex_to_file("/var/data/quote.txt", p_quote_buf, quote_size))) {
-		trace("write_hex_to_file failed: %d\n", ret);
-		goto cleanup;
+		if ((ret = write_hex_to_file(quote_path, p_quote_buf, quote_size))) {
+			trace("write_hex_to_file failed: %d\n", ret);
+			goto cleanup;
+		}
 	}
 
 	ret = 0;
 cleanup:
 	if (p_quote_buf != NULL) {
-		tdx_att_free_quote(p_quote_buf);
+		tdx->free_quote(p_quote_buf);
 	}
 	if (sock >= 0) {
 		close(sock);
@@ -415,5 +410,3 @@ cleanup:
 	free_ecc_context(&ctx);
 	return ret;
 }
-
-#endif
