@@ -233,6 +233,7 @@ sha256sum -c <<<"$EFI_STUB_SHA256  systemd/boot/efi/linuxx64.efi.stub"
 EOF
 
 COPY --from=builder /var/linux /var/linux
+COPY --from=builder /var/rootfs /var/rootfs
 COPY --from=builder /var/rootfs.cpio.gz /var/rootfs.cpio.gz
 COPY src/pack/*.sh /usr/local/bin/
 
