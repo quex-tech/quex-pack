@@ -5,7 +5,6 @@
 #include <endian.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <stdbool.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -17,21 +16,35 @@ struct superblock {
 	uint16_t magic;
 };
 
-static void parse_superblock(uint8_t buf[EXT4_SUPERBLOCK_SIZE], struct superblock *sb) {
-	sb->magic = le16toh(*(uint16_t *)(buf + 0x38));
+static void parse_superblock(const uint8_t buf[const EXT4_SUPERBLOCK_SIZE],
+                             struct superblock *out_sb) {
+	out_sb->magic = read_le16(buf + 0x38);
 }
 
-static int get_superblock(const char *dev_path, struct superblock *output) {
-	int err = 0;
+static int get_superblock(const char *dev_path, struct superblock *out_sb) {
+	int err;
 	uint8_t raw_sb[EXT4_SUPERBLOCK_SIZE];
-	int fd = open(dev_path, O_RDONLY | O_CLOEXEC);
+	int fd = open(dev_path, O_RDONLY);
 	if (fd < 0) {
 		err = errno;
 		trace("open %s failed: %s\n", dev_path, strerror(err));
 		return -err;
 	}
 
-	ssize_t n = pread(fd, raw_sb, EXT4_SUPERBLOCK_SIZE, EXT4_SUPERBLOCK_OFFSET);
+	int flags = fcntl(fd, F_GETFD);
+	if (flags >= 0) {
+		fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+	}
+
+	if (lseek(fd, EXT4_SUPERBLOCK_OFFSET, SEEK_SET) < 0) {
+		err = errno;
+		trace("lseek(%s, %ld) failed: %s\n", dev_path, (long)EXT4_SUPERBLOCK_OFFSET,
+		      strerror(err));
+		close(fd);
+		return -err;
+	}
+
+	ssize_t n = read(fd, raw_sb, EXT4_SUPERBLOCK_SIZE);
 	close(fd);
 
 	if (n < 0) {
@@ -46,7 +59,7 @@ static int get_superblock(const char *dev_path, struct superblock *output) {
 		return -1;
 	}
 
-	parse_superblock(raw_sb, output);
+	parse_superblock(raw_sb, out_sb);
 
 	return 0;
 }
@@ -78,8 +91,8 @@ static int mkfs_ext4(const char *dev, const char *options) {
 	return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
 }
 
-int parse_mkfs_spec(char *input, struct mkfs_spec *output) {
-	if (!input || !output) {
+int parse_mkfs_spec(char *input, struct mkfs_spec *out_spec) {
+	if (!input || !out_spec) {
 		return -1;
 	}
 
@@ -92,14 +105,14 @@ int parse_mkfs_spec(char *input, struct mkfs_spec *output) {
 		return -1;
 	}
 
-	output->dev = dev;
-	output->fstype = fstype;
-	output->options = options;
+	out_spec->dev = dev;
+	out_spec->fstype = fstype;
+	out_spec->options = options;
 
 	return 0;
 }
 
-int mkfs(struct mkfs_spec *spec) {
+int mkfs(const struct mkfs_spec *spec) {
 	if (strcmp(spec->fstype, "ext4") != 0) {
 		trace("%s is not supported\n", spec->fstype);
 		return -1;

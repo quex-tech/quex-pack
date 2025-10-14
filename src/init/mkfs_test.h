@@ -4,7 +4,7 @@
 #include "test.h"
 #include <string.h>
 
-static void test_parse_mkfs_spec_with_options() {
+static void test_parse_mkfs_spec_with_options(void) {
 	char valid[] = "/dev/vdb1:ext4:^64bit,quota";
 	struct mkfs_spec spec = {0};
 
@@ -15,7 +15,7 @@ static void test_parse_mkfs_spec_with_options() {
 	     "options must be ^64bit,quota");
 }
 
-static void test_parse_mkfs_spec_without_options() {
+static void test_parse_mkfs_spec_without_options(void) {
 	char valid[] = "/dev/vdb2:ext4";
 	struct mkfs_spec spec = {0};
 
@@ -25,7 +25,7 @@ static void test_parse_mkfs_spec_without_options() {
 	must(spec.options == NULL, "options must be NULL when absent");
 }
 
-static void test_parse_mkfs_spec_invalid() {
+static void test_parse_mkfs_spec_invalid(void) {
 	struct mkfs_spec spec = {0};
 	char no_fstype[] = "/dev/vdb1";
 
@@ -36,7 +36,7 @@ static void test_parse_mkfs_spec_invalid() {
 	must(parse_mkfs_spec(valid, NULL) == -1, "NULL output must fail");
 }
 
-static void test_mkfs() {
+static void test_mkfs(void) {
 	test_parse_mkfs_spec_with_options();
 	test_parse_mkfs_spec_without_options();
 	test_parse_mkfs_spec_invalid();

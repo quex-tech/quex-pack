@@ -11,7 +11,7 @@
 		    0x7F, 0x06, 0x07                                                               \
 	}
 
-static void test_is_quote_header_well_formed_correct() {
+static void test_is_quote_header_well_formed_correct(void) {
 	uint32_t signature_data_lengths[3] = {584, 1024, 16384};
 
 	sgx_quote3_t quote = {.header = {.version = 3,
@@ -26,7 +26,7 @@ static void test_is_quote_header_well_formed_correct() {
 	}
 }
 
-static void test_is_quote_header_well_formed_wrong_version() {
+static void test_is_quote_header_well_formed_wrong_version(void) {
 	uint16_t versions[] = {0, 1, 2, 4, 5};
 
 	sgx_quote3_t quote = {
@@ -40,7 +40,7 @@ static void test_is_quote_header_well_formed_wrong_version() {
 	}
 }
 
-static void test_is_quote_header_well_formed_wrong_att_key_type() {
+static void test_is_quote_header_well_formed_wrong_att_key_type(void) {
 	uint16_t key_types[] = {SGX_QL_ALG_EPID, SGX_QL_ALG_RESERVED_1, SGX_QL_ALG_ECDSA_P384,
 	                        SGX_QL_ALG_MAX, 5};
 
@@ -55,7 +55,7 @@ static void test_is_quote_header_well_formed_wrong_att_key_type() {
 	}
 }
 
-static void test_is_quote_header_well_formed_wrong_att_key_data() {
+static void test_is_quote_header_well_formed_wrong_att_key_data(void) {
 	sgx_quote3_t quote = {.header = {.version = 3,
 	                                 .att_key_type = SGX_QL_ALG_ECDSA_P256,
 	                                 .att_key_data_0 = 1,
@@ -66,7 +66,7 @@ static void test_is_quote_header_well_formed_wrong_att_key_data() {
 	     "Quote with att_key_data_0=%u must not pass validation", quote.header.att_key_data_0);
 }
 
-static void test_is_quote_header_well_formed_wrong_vendor() {
+static void test_is_quote_header_well_formed_wrong_vendor(void) {
 	sgx_quote3_t quote = {
 	    .header = {.version = 3,
 	               .att_key_type = SGX_QL_ALG_ECDSA_P256,
@@ -78,7 +78,7 @@ static void test_is_quote_header_well_formed_wrong_vendor() {
 	     "Quote with wrong vendor must not pass validation");
 }
 
-static void test_is_quote_header_well_formed_wrong_signature_data_len() {
+static void test_is_quote_header_well_formed_wrong_signature_data_len(void) {
 	uint32_t signature_data_lengths[3] = {0, 583, 16385};
 
 	sgx_quote3_t quote = {.header = {.version = 3,
@@ -140,7 +140,7 @@ sgx_quote3_t *read_quote(const char *filename, size_t *size_out) {
 	return buffer;
 }
 
-static void test_verify_quote_valid() {
+static void test_verify_quote_valid(void) {
 	size_t quote_len;
 	sgx_quote3_t *quote = read_quote("./test_data/quote.dat", &quote_len);
 	must(quote, "Could not read quote");
@@ -163,7 +163,7 @@ cleanup:
 	mbedtls_x509_crt_free(&root_crt);
 }
 
-static void test_quote() {
+static void test_quote(void) {
 	test_is_quote_header_well_formed_correct();
 	test_is_quote_header_well_formed_wrong_version();
 	test_is_quote_header_well_formed_wrong_att_key_type();

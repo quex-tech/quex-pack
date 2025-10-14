@@ -29,7 +29,7 @@ static int write_raw_sig(const mbedtls_mpi *r, const mbedtls_mpi *s, uint8_t out
 	return 0;
 }
 
-static void test_rs_to_der() {
+static void test_rs_to_der(void) {
 	mbedtls_ecp_group grp;
 	mbedtls_ecp_group_init(&grp);
 	must(mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256K1) == 0, "Failed to load group");
@@ -54,7 +54,7 @@ static void test_rs_to_der() {
 	mbedtls_md_init(&md);
 	must(mbedtls_md_setup(&md, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 0) == 0,
 	     "mbedtls_md_setup failed");
-	must(mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), msg, sizeof(msg) - 1, hash) ==
+	must(mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), msg, sizeof msg - 1, hash) ==
 	         0,
 	     "mbedtls_md failed");
 	mbedtls_md_free(&md);
@@ -62,7 +62,7 @@ static void test_rs_to_der() {
 	mbedtls_mpi r, s;
 	mbedtls_mpi_init(&r);
 	mbedtls_mpi_init(&s);
-	must(mbedtls_ecdsa_sign(&grp, &r, &s, &sk, hash, sizeof(hash), mbedtls_ctr_drbg_random,
+	must(mbedtls_ecdsa_sign(&grp, &r, &s, &sk, hash, sizeof hash, mbedtls_ctr_drbg_random,
 	                        &ctr_drbg) == 0,
 	     "mbedtls_ecdsa_sign failed");
 
@@ -71,11 +71,11 @@ static void test_rs_to_der() {
 
 	uint8_t sig_der[128];
 	size_t sig_der_len = 0;
-	must(rs_to_der(raw_sig, sig_der, sizeof(sig_der), &sig_der_len) == 0,
+	must(rs_to_der(raw_sig, sig_der, sizeof sig_der, &sig_der_len) == 0,
 	     "rs_to_der must succeed");
 	must(sig_der_len > 0, "sig_der_len must be > 0");
 
-	must(mbedtls_ecdsa_verify(&grp, hash, sizeof(hash), &pk, &r, &s) == 0,
+	must(mbedtls_ecdsa_verify(&grp, hash, sizeof hash, &pk, &r, &s) == 0,
 	     "mbedtls_ecdsa_verify must succeed");
 
 	mbedtls_mpi_free(&s);
@@ -87,7 +87,7 @@ static void test_rs_to_der() {
 	mbedtls_entropy_free(&entropy);
 }
 
-static void test_pk_to_der() {
+static void test_pk_to_der(void) {
 	mbedtls_ecp_group grp;
 	mbedtls_ecp_group_init(&grp);
 	must(mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1) == 0, "Failed to load group");
@@ -127,7 +127,7 @@ static void test_pk_to_der() {
 	mbedtls_entropy_free(&entropy);
 }
 
-static void test_der() {
+static void test_der(void) {
 	test_rs_to_der();
 	test_pk_to_der();
 }

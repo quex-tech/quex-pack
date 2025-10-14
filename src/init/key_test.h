@@ -6,7 +6,6 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <signal.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,7 +58,7 @@ static tdx_attest_error_t mock_get_quote(const tdx_report_data_t *p_tdx_report_d
 	(void)list_size;
 	(void)flags;
 	if (p_att_key_id) {
-		memset(p_att_key_id, 0, sizeof(*p_att_key_id));
+		memset(p_att_key_id, 0, sizeof *p_att_key_id);
 	}
 	*p_quote_size = 4;
 	*pp_quote = (uint8_t *)malloc(*p_quote_size);
@@ -87,7 +86,7 @@ struct get_sk_thread_args {
 	int ret_out;
 };
 
-static int no_entropy(void *data, unsigned char *output, size_t len) {
+static int no_entropy(void *data, uint8_t *output, size_t len) {
 	(void)data;
 	memset(output, 0, len);
 	return 0;
@@ -106,7 +105,7 @@ static void *get_sk_thread_main(void *arg) {
 	return NULL;
 }
 
-static int connect_sock() {
+static int connect_sock(void) {
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (fd < 0) {
 		return -1;
@@ -115,7 +114,7 @@ static int connect_sock() {
 	sa.sin_family = AF_INET;
 	sa.sin_port = htons(TEST_PORT);
 	sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-	if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != 0) {
+	if (connect(fd, (struct sockaddr *)&sa, sizeof sa) != 0) {
 		close(fd);
 		return -1;
 	}
@@ -123,7 +122,7 @@ static int connect_sock() {
 	return fd;
 }
 
-static void test_get_sk() {
+static void test_get_sk(void) {
 	int fd = 0;
 
 	uint8_t *key_msg_blob = NULL;
@@ -186,4 +185,4 @@ cleanup:
 	}
 }
 
-static void test_key() { test_get_sk(); }
+static void test_key(void) { test_get_sk(); }

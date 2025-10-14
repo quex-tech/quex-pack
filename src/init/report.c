@@ -13,16 +13,16 @@ struct tee_tcb_svn_t_parsed {
 	uint8_t reserved[13];
 };
 
-static inline void do_mask(const uint16_t mask, const unsigned bit, void *ptr, size_t size) {
+static inline void do_mask(uint16_t mask, unsigned bit, void *out_mem, size_t mem_len) {
 	if (!(mask & (1u << bit))) {
-		memset(ptr, 0, size);
+		memset(out_mem, 0, mem_len);
 	}
 }
 
 #define mask_field(m, b, p, t, f) do_mask(m, b, (uint8_t *)p + offsetof(t, f), sizeof_field(t, f))
 #define mask_exp(m, b, e) do_mask(m, b, &(e), sizeof e)
 
-static void apply_report_mac_struct_mask(sgx_report2_mac_struct_t *mac, const uint8_t mask) {
+static void apply_report_mac_struct_mask(sgx_report2_mac_struct_t *mac, uint8_t mask) {
 	mask_exp(mask, 0, mac->report_type);
 	mask_exp(mask, 1, mac->reserved1);
 	mask_exp(mask, 2, mac->cpu_svn);
@@ -33,7 +33,7 @@ static void apply_report_mac_struct_mask(sgx_report2_mac_struct_t *mac, const ui
 	mask_exp(mask, 7, mac->mac);
 }
 
-static void apply_tee_tcb_info_mask(uint8_t *restrict tee_tcb_info, const uint16_t mask) {
+static void apply_tee_tcb_info_mask(uint8_t *restrict tee_tcb_info, uint16_t mask) {
 	mask_field(mask, 0, tee_tcb_info, tee_tcb_info_v1_5_t, valid);
 	mask_field(mask, 1, tee_tcb_info, tee_tcb_info_v1_5_t, tee_tcb_svn);
 	mask_field(mask, 2, tee_tcb_info, tee_tcb_info_v1_5_t, mr_seam);
@@ -49,8 +49,8 @@ static void apply_tee_tcb_info_mask(uint8_t *restrict tee_tcb_info, const uint16
 	mask_field(mask, 9, tee_tcb_info, tee_tcb_info_v1_5_t, reserved);
 }
 
-static void apply_tee_info_mask(uint8_t *restrict tee_info, const uint16_t base_mask,
-                                const uint8_t extension_mask) {
+static void apply_tee_info_mask(uint8_t *restrict tee_info, uint16_t base_mask,
+                                uint8_t extension_mask) {
 	mask_field(base_mask, 0, tee_info, tee_info_v1_5_t, attributes);
 	mask_field(base_mask, 1, tee_info, tee_info_v1_5_t, xfam);
 	mask_field(base_mask, 2, tee_info, tee_info_v1_5_t, mr_td);
@@ -65,7 +65,7 @@ static void apply_tee_info_mask(uint8_t *restrict tee_info, const uint16_t base_
 	mask_field(extension_mask, 0, tee_info, tee_info_v1_5_t, reserved);
 }
 
-void apply_mask(sgx_report2_t *report, const td_key_request_mask_t *mask) {
+void apply_mask(sgx_report2_t *report, const struct td_key_request_mask *mask) {
 	_Static_assert(sizeof(tee_tcb_info_v1_5_t) == sizeof report->tee_tcb_info, "Size mismatch");
 	_Static_assert(sizeof(tee_info_v1_5_t) == sizeof report->tee_info, "Size mismatch");
 	_Static_assert(sizeof(tee_tcb_svn_t) == sizeof(struct tee_tcb_svn_t_parsed),
@@ -78,3 +78,6 @@ void apply_mask(sgx_report2_t *report, const td_key_request_mask_t *mask) {
 
 	apply_tee_info_mask(report->tee_info, mask->tdinfo_base_mask, mask->tdinfo_extension_mask);
 }
+
+#undef mask_field
+#undef mask_exp

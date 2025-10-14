@@ -6,14 +6,10 @@
 #include <string.h>
 #include <sys/mount.h>
 
-static unsigned long parse_mount_flags(const char *options_str) {
+static unsigned long parse_mount_flags(char *options) {
 	unsigned long flags = 0;
-	char *opts = strdup(options_str);
-	if (!opts) {
-		return 0;
-	}
 
-	char *token = strtok(opts, ",");
+	const char *token = strtok(options, ",");
 	while (token) {
 		if (strcmp(token, "ro") == 0) {
 			flags |= MS_RDONLY;
@@ -45,12 +41,11 @@ static unsigned long parse_mount_flags(const char *options_str) {
 		token = strtok(NULL, ",");
 	}
 
-	free(opts);
 	return flags;
 }
 
-int parse_mount_spec(char *input, struct mount_spec *output) {
-	if (!input || !output) {
+int parse_mount_spec(char *input, struct mount_spec *out_spec) {
+	if (!input || !out_spec) {
 		return -1;
 	}
 
@@ -64,10 +59,10 @@ int parse_mount_spec(char *input, struct mount_spec *output) {
 		return -1;
 	}
 
-	output->source = source;
-	output->target = target;
-	output->fstype = fstype;
-	output->flags = options ? parse_mount_flags(options) : 0;
+	out_spec->source = source;
+	out_spec->target = target;
+	out_spec->fstype = fstype;
+	out_spec->flags = options ? parse_mount_flags(options) : 0;
 
 	return 0;
 }

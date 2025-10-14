@@ -5,9 +5,10 @@
 
 #include <mbedtls/ecp.h>
 
-int read_raw_pk(mbedtls_ecp_group *grp, const uint8_t raw[64], mbedtls_ecp_point *pk);
-int write_raw_pk(mbedtls_ecp_group *grp, mbedtls_ecp_point *pk, uint8_t out[64]);
-int read_raw_sig(const uint8_t raw[64], mbedtls_mpi *r, mbedtls_mpi *s);
-int read_raw_sk(const uint8_t raw[32], mbedtls_mpi *sk);
+int read_raw_pk(const mbedtls_ecp_group *grp, const uint8_t raw[static 64],
+                mbedtls_ecp_point *out_pk);
+int write_raw_pk(const mbedtls_ecp_group *grp, const mbedtls_ecp_point *pk, uint8_t out[static 64]);
+int read_raw_sig(const uint8_t raw[static 64], mbedtls_mpi *out_r, mbedtls_mpi *out_s);
+int read_raw_sk(const uint8_t raw[static 32], mbedtls_mpi *out_sk);
 
 #endif

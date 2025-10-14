@@ -4,7 +4,7 @@
 #include "utils.h"
 #include <string.h>
 
-static void test_write_hex_known_vector() {
+static void test_write_hex_known_vector(void) {
 	uint8_t bytes[] = {0x00, 0x01, 0x7f, 0x80, 0xfe, 0xff};
 	char out[sizeof_array(bytes) * 2];
 
@@ -15,7 +15,7 @@ static void test_write_hex_known_vector() {
 	     "write_hex must format lowercase hex with leading zeros");
 }
 
-static void test_read_hex_known_vector() {
+static void test_read_hex_known_vector(void) {
 	const char hex[] = "deadbeef00ff";
 	uint8_t out[6] = {0};
 	const uint8_t expected[] = {0xde, 0xad, 0xbe, 0xef, 0x00, 0xff};
@@ -24,7 +24,7 @@ static void test_read_hex_known_vector() {
 	must(memcmp(out, expected, sizeof expected) == 0, "read_hex must parse correctly");
 }
 
-static void test_hex_roundtrip() {
+static void test_hex_roundtrip(void) {
 	uint8_t in[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
 	                0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
 	char hex[sizeof_array(in) * 2];
@@ -37,14 +37,14 @@ static void test_hex_roundtrip() {
 	     "Roundtrip write_hex/read_hex must preserve bytes");
 }
 
-static void test_read_hex_invalid_len() {
+static void test_read_hex_invalid_len(void) {
 	const char hex[] = "abc";
 	uint8_t out[2] = {0};
 
 	must(read_hex(hex, out, sizeof_array(out)) == -1, "read_hex must fail on odd-length hex");
 }
 
-static void test_read_hex_invalid_char() {
+static void test_read_hex_invalid_char(void) {
 	const char hex[] = "0x";
 	uint8_t out[1] = {0};
 
@@ -52,7 +52,7 @@ static void test_read_hex_invalid_char() {
 	     "read_hex must fail on non-hex characters");
 }
 
-static void test_utils() {
+static void test_utils(void) {
 	test_write_hex_known_vector();
 	test_read_hex_known_vector();
 	test_hex_roundtrip();

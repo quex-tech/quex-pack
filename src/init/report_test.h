@@ -6,26 +6,26 @@
 #include <sgx_quote_5.h>
 #include <string.h>
 
-static void test_apply_zero_mask() {
+static void test_apply_zero_mask(void) {
 	sgx_report2_t report = {0};
 	memset(&report, 0x1a, sizeof report);
 
 	sgx_report2_t zero_report = {0};
 
-	td_key_request_mask_t zero_mask = {0};
+	struct td_key_request_mask zero_mask = {0};
 
 	apply_mask(&report, &zero_mask);
 
 	must(memcmp(&zero_report, &report, sizeof report) == 0, "Full mask must nullify report");
 }
 
-static void test_apply_full_mask() {
+static void test_apply_full_mask(void) {
 	sgx_report2_t original_report = {0};
 	memset(&original_report, 0x1a, sizeof original_report);
 
 	sgx_report2_t report = original_report;
 
-	td_key_request_mask_t full_mask;
+	struct td_key_request_mask full_mask;
 	memset(&full_mask, 0xff, sizeof full_mask);
 
 	apply_mask(&report, &full_mask);
@@ -34,7 +34,7 @@ static void test_apply_full_mask() {
 	     "Full mask must not modify report");
 }
 
-static void test_apply_partial_mask() {
+static void test_apply_partial_mask(void) {
 	sgx_report2_t report = {.report_mac_struct = {.report_type = {1},
 	                                              .reserved1 = {2},
 	                                              .cpu_svn = {.svn = {3, 4, 5, 6}},
@@ -63,7 +63,7 @@ static void test_apply_partial_mask() {
 	memcpy(&report.tee_tcb_info, &tee_tcb_info, sizeof tee_tcb_info);
 	memcpy(&report.tee_info, &tee_info, sizeof tee_info);
 
-	td_key_request_mask_t mask = {.reportmacstruct_mask = 0b01010101,
+	struct td_key_request_mask mask = {.reportmacstruct_mask = 0b01010101,
 	                              .tee_tcb_info_mask = 0b0000000101010101,
 	                              .reserved_mask = 0b0,
 	                              .tdinfo_base_mask = 0b0000010101010101,
@@ -114,7 +114,7 @@ static void test_apply_partial_mask() {
 	     "Mask must modify report correctly");
 }
 
-static void test_report() {
+static void test_report(void) {
 	test_apply_zero_mask();
 	test_apply_full_mask();
 	test_apply_partial_mask();

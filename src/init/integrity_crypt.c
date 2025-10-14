@@ -15,7 +15,7 @@
 #define SECTOR_SIZE 512
 #define BLOCK_SIZE 512
 #define SUPERBLOCK_SIZE 4096
-#define JOURNAL_SECTORS 1024
+#define JOURNAL_SECTORS 1024U
 #define NO_SUPERBLOCK 1
 #define DEV_PATH_MAX_LENGTH 128
 #define MAPPER_NAME_MAX_LENGTH 64
@@ -37,18 +37,18 @@ struct superblock {
 	uint8_t salt[16];
 };
 
-static void parse_superblock(uint8_t buf[SUPERBLOCK_SIZE], struct superblock *sb) {
+static void parse_superblock(const uint8_t buf[SUPERBLOCK_SIZE], struct superblock *sb) {
 	memcpy(sb->magic, buf, 8);
 	sb->version = buf[8];
 	sb->log2_interleave_sectors = buf[9];
-	sb->integrity_tag_size = le16toh(*(uint16_t *)(buf + 10));
-	sb->journal_sections = le32toh(*(uint32_t *)(buf + 12));
-	sb->provided_data_sectors = le64toh(*(uint64_t *)(buf + 16));
-	sb->flags = le32toh(*(uint32_t *)(buf + 24));
+	sb->integrity_tag_size = read_le16(buf + 10);
+	sb->journal_sections = read_le32(buf + 12);
+	sb->provided_data_sectors = read_le64(buf + 16);
+	sb->flags = read_le32(buf + 24);
 	sb->log2_sectors_per_block = buf[28];
 	sb->log2_blocks_per_bitmap_bit = buf[29];
 	memcpy(sb->pad, buf + 30, 2);
-	sb->recalc_sector = le64toh(*(uint64_t *)(buf + 32));
+	sb->recalc_sector = read_le64(buf + 32);
 	memcpy(sb->pad2, buf + 40, 8);
 	memcpy(sb->salt, buf + 48, 16);
 }
@@ -82,20 +82,31 @@ static const struct superblock integrity_crypt_expected_sb = {.magic = "integrt"
                                                               .salt = {0}};
 
 static int get_superblock(const char *dev_path, struct superblock *output) {
-	int err = 0;
 	uint8_t raw_sb[SUPERBLOCK_SIZE];
-	int fd = open(dev_path, O_RDONLY | O_CLOEXEC);
+	int fd = open(dev_path, O_RDONLY);
 	if (fd < 0) {
-		err = errno;
+		int err = errno;
 		trace("open %s failed: %s\n", dev_path, strerror(err));
 		return -err;
 	}
 
-	ssize_t n = pread(fd, raw_sb, SUPERBLOCK_SIZE, 0);
+	int flags = fcntl(fd, F_GETFD);
+	if (flags >= 0) {
+		fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+	}
+
+	if (lseek(fd, 0, SEEK_SET) < 0) {
+		int err = errno;
+		trace("lseek on %s failed: %s\n", dev_path, strerror(err));
+		close(fd);
+		return -err;
+	}
+
+	ssize_t n = read(fd, raw_sb, SUPERBLOCK_SIZE);
 	close(fd);
 
 	if (n < 0) {
-		err = errno;
+		int err = errno;
 		trace("Cannot read superblock from %s: %s\n", dev_path, strerror(err));
 		return -err;
 	}
@@ -124,7 +135,7 @@ static int get_superblock(const char *dev_path, struct superblock *output) {
 
 static int validate_superblock(const struct superblock *sb, const struct superblock *expected_sb) {
 
-	if (memcmp(sb->magic, expected_sb->magic, sizeof(expected_sb->magic)) != 0) {
+	if (memcmp(sb->magic, expected_sb->magic, sizeof expected_sb->magic) != 0) {
 		trace("Invalid magic\n");
 		return -1;
 	}
@@ -145,7 +156,7 @@ static int validate_superblock(const struct superblock *sb, const struct superbl
 	}
 
 	if (sb->flags != expected_sb->flags) {
-		trace("Invalid flags: %d\n", sb->flags);
+		trace("Invalid flags: %u\n", sb->flags);
 		return -1;
 	}
 
@@ -154,12 +165,12 @@ static int validate_superblock(const struct superblock *sb, const struct superbl
 		return -1;
 	}
 
-	if (memcmp(sb->pad, expected_sb->pad, sizeof(expected_sb->pad)) != 0) {
+	if (memcmp(sb->pad, expected_sb->pad, sizeof expected_sb->pad) != 0) {
 		trace("Non-zero pad\n");
 		return -1;
 	}
 
-	if (memcmp(sb->pad2, expected_sb->pad2, sizeof(expected_sb->pad2)) != 0) {
+	if (memcmp(sb->pad2, expected_sb->pad2, sizeof expected_sb->pad2) != 0) {
 		trace("Non-zero pad2\n");
 		return -1;
 	}
@@ -201,18 +212,23 @@ cleanup:
 }
 
 int test_read(const char *dev_path) {
-	int fd = open(dev_path, O_RDONLY | O_CLOEXEC);
+	int fd = open(dev_path, O_RDONLY);
 	if (fd < 0) {
 		trace("Cannot open %s: %s\n", dev_path, strerror(errno));
 		return -1;
 	}
 
+	int flags = fcntl(fd, F_GETFD);
+	if (flags >= 0) {
+		fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+	}
+
 	char buffer[4096];
-	ssize_t bytes_read = read(fd, buffer, sizeof(buffer));
+	ssize_t bytes_read = read(fd, buffer, sizeof buffer);
 	int read_errno = errno;
 	close(fd);
 
-	if (bytes_read == sizeof(buffer)) {
+	if (bytes_read == sizeof buffer) {
 		return 0;
 	}
 
@@ -275,7 +291,8 @@ static void format_crypt_params(const char *dev_path, const uint8_t key[32],
 }
 
 static int map_integrity_device(const char *mapper_name, char target_params[TABLE_MAX_LENGTH]) {
-	struct dm_target target = {0, 1, "integrity", target_params};
+	char ttype[] = "integrity";
+	struct dm_target target = {0, 1, ttype, target_params};
 
 	int err = create_device(mapper_name, &target);
 	if (err) {
@@ -320,7 +337,8 @@ static int map_integrity_device(const char *mapper_name, char target_params[TABL
 
 static int map_crypt_device(const char *mapper_name, char target_params[TABLE_MAX_LENGTH],
                             uint64_t provided_sectors) {
-	struct dm_target target = {0, provided_sectors, "crypt", target_params};
+	char ttype[] = "crypt";
+	struct dm_target target = {0, provided_sectors, ttype, target_params};
 
 	int err = create_device(mapper_name, &target);
 	if (err) {
@@ -365,7 +383,7 @@ static int init_integrity(const char *mapper_name, const char *dev_path, const u
 	}
 
 	char mapped_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_dev_path, sizeof(mapped_dev_path), "/dev/mapper/%s", mapper_name);
+	snprintf(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s", mapper_name);
 
 	if (zeroize_device(mapped_dev_path, provided * SECTOR_SIZE) != 0) {
 		trace("zeroize_device %s failed\n", mapped_dev_path);
@@ -389,7 +407,7 @@ static int restore_integrity(const char *mapper_name, const char *dev_path,
 	}
 
 	char mapped_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_dev_path, sizeof(mapped_dev_path), "/dev/mapper/%s", mapper_name);
+	snprintf(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s", mapper_name);
 
 	err = test_read(mapped_dev_path);
 	if (err) {
@@ -405,7 +423,7 @@ static int init_crypt(const char *mapper_name, const char *dev_path, const uint8
 	trace("Initializing integrity...\n");
 
 	char integrity_mapper_name[MAPPER_NAME_MAX_LENGTH] = {0};
-	snprintf(integrity_mapper_name, sizeof(integrity_mapper_name), "%s-integrity", mapper_name);
+	snprintf(integrity_mapper_name, sizeof integrity_mapper_name, "%s-integrity", mapper_name);
 
 	if (zeroize_device(dev_path, SUPERBLOCK_SIZE) != 0) {
 		trace("zeroize_device %s failed\n", dev_path);
@@ -432,7 +450,7 @@ static int init_crypt(const char *mapper_name, const char *dev_path, const uint8
 	}
 
 	char mapped_integrity_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_integrity_dev_path, sizeof(mapped_integrity_dev_path), "/dev/mapper/%s",
+	snprintf(mapped_integrity_dev_path, sizeof mapped_integrity_dev_path, "/dev/mapper/%s",
 	         integrity_mapper_name);
 
 	char crypt_target_params[TABLE_MAX_LENGTH] = {0};
@@ -447,7 +465,7 @@ static int init_crypt(const char *mapper_name, const char *dev_path, const uint8
 	trace("Zeroizing the whole device...\n");
 
 	char mapped_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_dev_path, sizeof(mapped_dev_path), "/dev/mapper/%s", mapper_name);
+	snprintf(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s", mapper_name);
 
 	if (zeroize_device(mapped_dev_path, provided * SECTOR_SIZE) != 0) {
 		trace("zeroize_device %s failed\n", mapped_dev_path);
@@ -462,7 +480,7 @@ static int restore_crypt(const char *mapper_name, const char *dev_path, const ui
 	trace("Restoring integrity...\n");
 
 	char integrity_mapper_name[MAPPER_NAME_MAX_LENGTH] = {0};
-	snprintf(integrity_mapper_name, sizeof(integrity_mapper_name), "%s-integrity", mapper_name);
+	snprintf(integrity_mapper_name, sizeof integrity_mapper_name, "%s-integrity", mapper_name);
 
 	char integrity_target_params[TABLE_MAX_LENGTH] = {0};
 	format_integrity_crypt_params(dev_path, journal_crypt_key, journal_mac_key,
@@ -477,7 +495,7 @@ static int restore_crypt(const char *mapper_name, const char *dev_path, const ui
 	trace("Restoring crypt...\n");
 
 	char mapped_integrity_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_integrity_dev_path, sizeof(mapped_integrity_dev_path), "/dev/mapper/%s",
+	snprintf(mapped_integrity_dev_path, sizeof mapped_integrity_dev_path, "/dev/mapper/%s",
 	         integrity_mapper_name);
 
 	char crypt_target_params[TABLE_MAX_LENGTH] = {0};
@@ -497,7 +515,7 @@ static int restore_crypt(const char *mapper_name, const char *dev_path, const ui
 	}
 
 	char mapped_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_dev_path, sizeof(mapped_dev_path), "/dev/mapper/%s", mapper_name);
+	snprintf(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s", mapper_name);
 
 	err = test_read(mapped_dev_path);
 	if (err) {
@@ -508,8 +526,8 @@ static int restore_crypt(const char *mapper_name, const char *dev_path, const ui
 	return 0;
 }
 
-int parse_integrity_spec(char *input, struct integrity_spec *output) {
-	if (!input || !output) {
+int parse_integrity_spec(char *input, struct integrity_spec *out_spec) {
+	if (!input || !out_spec) {
 		return -1;
 	}
 
@@ -521,14 +539,14 @@ int parse_integrity_spec(char *input, struct integrity_spec *output) {
 		return -1;
 	}
 
-	output->dev = dev;
-	output->name = name;
+	out_spec->dev = dev;
+	out_spec->name = name;
 
 	return 0;
 }
 
-int setup_integrity(struct integrity_spec *spec, const uint8_t mac_key[32],
-                    const uint8_t journal_crypt_key[32]) {
+int setup_integrity(const struct integrity_spec *spec, const uint8_t mac_key[static 32],
+                    const uint8_t journal_crypt_key[static 32]) {
 	struct superblock sb = {0};
 	int err = get_superblock(spec->dev, &sb);
 	if (err && err != NO_SUPERBLOCK) {
@@ -550,8 +568,8 @@ int setup_integrity(struct integrity_spec *spec, const uint8_t mac_key[32],
 	return restore_integrity(spec->name, spec->dev, mac_key, journal_crypt_key);
 }
 
-int parse_crypt_spec(char *input, struct crypt_spec *output) {
-	if (!input || !output) {
+int parse_crypt_spec(char *input, struct crypt_spec *out_spec) {
+	if (!input || !out_spec) {
 		return -1;
 	}
 
@@ -563,14 +581,15 @@ int parse_crypt_spec(char *input, struct crypt_spec *output) {
 		return -1;
 	}
 
-	output->dev = dev;
-	output->name = name;
+	out_spec->dev = dev;
+	out_spec->name = name;
 
 	return 0;
 }
 
-int setup_crypt(struct crypt_spec *spec, const uint8_t key[32], const uint8_t journal_crypt_key[32],
-                const uint8_t journal_mac_key[32]) {
+int setup_crypt(const struct crypt_spec *spec, const uint8_t key[static 32],
+                const uint8_t journal_crypt_key[static 32],
+                const uint8_t journal_mac_key[static 32]) {
 	struct superblock sb = {0};
 	int err = get_superblock(spec->dev, &sb);
 	if (err && err != NO_SUPERBLOCK) {

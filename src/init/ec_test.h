@@ -7,7 +7,7 @@
 #include <mbedtls/ecp.h>
 #include <mbedtls/entropy.h>
 
-static void test_read_write_raw_pk_roundtrip() {
+static void test_read_write_raw_pk_roundtrip(void) {
 	mbedtls_ecp_group grp;
 	mbedtls_ecp_group_init(&grp);
 	must(mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256K1) == 0, "Failed to load group");
@@ -46,7 +46,7 @@ static void test_read_write_raw_pk_roundtrip() {
 	mbedtls_entropy_free(&entropy);
 }
 
-static void test_read_raw_sk() {
+static void test_read_raw_sk(void) {
 	uint8_t raw_sk[32];
 	for (size_t i = 0; i < sizeof_array(raw_sk); i++) {
 		raw_sk[i] = (uint8_t)(0xAA ^ i);
@@ -61,7 +61,7 @@ static void test_read_raw_sk() {
 	mbedtls_mpi_free(&sk);
 }
 
-static void test_read_raw_sig() {
+static void test_read_raw_sig(void) {
 	uint8_t raw_sig[64];
 	for (size_t i = 0; i < sizeof_array(raw_sig); i++) {
 		raw_sig[i] = (uint8_t)(0xAA ^ i);
@@ -79,7 +79,7 @@ static void test_read_raw_sig() {
 	mbedtls_mpi_free(&s);
 }
 
-static void test_ec() {
+static void test_ec(void) {
 	test_read_write_raw_pk_roundtrip();
 	test_read_raw_sig();
 	test_read_raw_sk();

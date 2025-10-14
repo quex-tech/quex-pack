@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-int rs_to_der(const uint8_t rs[64], uint8_t *der, size_t der_size, size_t *olen);
-int pk_to_der(const uint8_t pk[64], unsigned char *der, size_t der_size, size_t *olen);
+int rs_to_der(const uint8_t rs[static 64], uint8_t *out_der, size_t max_der_len, size_t *out_der_len);
+int pk_to_der(const uint8_t pk[static 64], uint8_t *out_der, size_t max_der_len, size_t *out_der_len);
 
 #endif

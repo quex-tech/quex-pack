@@ -4,7 +4,7 @@
 #include "test.h"
 #include <string.h>
 
-static void test_parse_crypt_spec_ok() {
+static void test_parse_crypt_spec_ok(void) {
 	char valid[] = "/dev/vdc1:root-crypt";
 	struct crypt_spec spec = {0};
 
@@ -13,7 +13,7 @@ static void test_parse_crypt_spec_ok() {
 	must(strcmp(spec.name, "root-crypt") == 0, "name must be root-crypt");
 }
 
-static void test_parse_crypt_spec_invalid() {
+static void test_parse_crypt_spec_invalid(void) {
 	struct crypt_spec spec = {0};
 	char no_name[] = "/dev/vdc1";
 
@@ -24,7 +24,7 @@ static void test_parse_crypt_spec_invalid() {
 	must(parse_crypt_spec(valid, NULL) == -1, "NULL output must fail");
 }
 
-static void test_parse_integrity_spec_ok() {
+static void test_parse_integrity_spec_ok(void) {
 	char valid[] = "/dev/vdd1:root-int";
 	struct integrity_spec spec = {0};
 
@@ -33,7 +33,7 @@ static void test_parse_integrity_spec_ok() {
 	must(strcmp(spec.name, "root-int") == 0, "name must be root-int");
 }
 
-static void test_parse_integrity_spec_invalid() {
+static void test_parse_integrity_spec_invalid(void) {
 	struct integrity_spec spec = {0};
 	char no_name[] = "/dev/vdd1";
 
@@ -44,7 +44,7 @@ static void test_parse_integrity_spec_invalid() {
 	must(parse_integrity_spec(valid, NULL) == -1, "NULL output must fail");
 }
 
-static void test_integrity_crypt() {
+static void test_integrity_crypt(void) {
 	test_parse_crypt_spec_ok();
 	test_parse_crypt_spec_invalid();
 	test_parse_integrity_spec_ok();

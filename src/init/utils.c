@@ -25,15 +25,15 @@ int init_socket(uint16_t port) {
 		return sock;
 	}
 
-	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof opt) < 0) {
 		return -1;
 	}
 
-	memset(&addr, 0, sizeof(addr));
+	memset(&addr, 0, sizeof addr);
 	addr.in.sin_family = AF_INET;
 	addr.in.sin_port = htons(port);
 	addr.in.sin_addr.s_addr = INADDR_ANY;
-	if (bind(sock, &addr.sa, sizeof(addr)) < 0) {
+	if (bind(sock, &addr.sa, sizeof addr) < 0) {
 		close(sock);
 		return -1;
 	}
@@ -47,14 +47,14 @@ int init_socket(uint16_t port) {
 	return sock;
 }
 
-void write_hex(const uint8_t *bytes, size_t bytes_len, char *dest) {
+void write_hex(const uint8_t *bytes, size_t bytes_len, char *out_hex) {
 	for (size_t i = 0; i < bytes_len; i++) {
-		snprintf(dest + i * 2, 3, "%02x", bytes[i]);
+		snprintf(out_hex + i * 2, 3, "%02x", bytes[i]);
 	}
 }
 
-int write_hex_to_file(const char *filename, uint8_t *bytes, size_t bytes_len) {
-	FILE *file = fopen(filename, "w");
+int write_hex_to_file(const char *path, const uint8_t *bytes, size_t bytes_len) {
+	FILE *file = fopen(path, "w");
 	if (!file) {
 		return -1;
 	}
@@ -75,18 +75,18 @@ int write_hex_to_file(const char *filename, uint8_t *bytes, size_t bytes_len) {
 	return 0;
 }
 
-int read_hex(const char *hex, uint8_t *dest, size_t dest_len) {
+int read_hex(const char *hex, uint8_t *out_bytes, size_t bytes_len) {
 	size_t hex_len = 0;
 	while (isxdigit(hex[hex_len])) {
 		hex_len++;
 	}
 
-	if (hex_len != dest_len * 2) {
+	if (hex_len != bytes_len * 2) {
 		return -1;
 	}
 
-	for (size_t i = 0; i < dest_len; i++) {
-		if (sscanf(hex + i * 2, "%2hhx", &dest[i]) != 1) {
+	for (size_t i = 0; i < bytes_len; i++) {
+		if (sscanf(hex + i * 2, "%2hhx", &out_bytes[i]) != 1) {
 			return -1;
 		}
 	}
@@ -94,8 +94,8 @@ int read_hex(const char *hex, uint8_t *dest, size_t dest_len) {
 	return 0;
 }
 
-int replace_in_file(const char *filename, const char *target, const char *replacement) {
-	FILE *f = fopen(filename, "r+b");
+int replace_in_file(const char *path, const char *target, const char *replacement) {
+	FILE *f = fopen(path, "r+b");
 	if (!f) {
 		return -1;
 	}
@@ -121,7 +121,17 @@ int replace_in_file(const char *filename, const char *target, const char *replac
 		return -4;
 	}
 
-	char *pos = memmem(data, size, target, strlen(target));
+	const char *pos = NULL;
+	size_t target_len = strlen(target);
+	if (target_len > 0 && size >= target_len) {
+		for (size_t i = 0; i <= size - target_len; i++) {
+			if (data[i] == target[0] && memcmp(data + i, target, target_len) == 0) {
+				pos = data + i;
+				break;
+			}
+		}
+	}
+
 	if (!pos) {
 		free(data);
 		fclose(f);
@@ -153,7 +163,7 @@ int copy_file(const char *src_path, const char *dst_path) {
 		goto cleanup;
 	}
 
-	while ((nread = fread(buf, 1, sizeof(buf), source)) > 0) {
+	while ((nread = fread(buf, 1, sizeof buf, source)) > 0) {
 		if (fwrite(buf, 1, nread, dest) != nread) {
 			goto cleanup;
 		}
@@ -177,19 +187,19 @@ cleanup:
 int zeroize_device(const char *dev_path, uint64_t len) {
 	int err = 0;
 
-	int fd = open(dev_path, O_RDWR | O_SYNC | O_CLOEXEC);
+	int fd = open(dev_path, O_RDWR | O_SYNC);
 	if (fd < 0) {
 		err = -errno;
 		trace("open %s failed: %s\n", dev_path, strerror(errno));
 		goto cleanup;
 	}
 
-	struct {
-		uint64_t start;
-		uint64_t length;
-	} range = {0, len};
+	int flags = fcntl(fd, F_GETFD);
+	if (flags >= 0) {
+		fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+	}
 
-	if (ioctl(fd, BLKZEROOUT, &range) == -1) {
+	if (ioctl(fd, BLKZEROOUT, &(struct {uint64_t start; uint64_t length;}){0, len}) == -1) {
 		err = -errno;
 		trace("ioctl(BLKZEROOT) %s failed: %s\n", dev_path, strerror(errno));
 		goto cleanup;

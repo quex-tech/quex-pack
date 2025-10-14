@@ -10,6 +10,6 @@ struct mount_spec {
 	unsigned long flags;
 };
 
-int parse_mount_spec(char *input, struct mount_spec *output);
+int parse_mount_spec(char *input, struct mount_spec *out_spec);
 
 #endif

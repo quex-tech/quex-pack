@@ -12,7 +12,7 @@
 #include "report_test.h"
 #include "utils_test.h"
 
-int main() {
+int main(void) {
 	test_der();
 	test_ec();
 	test_integrity_crypt();

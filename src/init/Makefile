@@ -3,10 +3,17 @@
 CC ?= gcc
 CFLAGS ?=
 
-LOCAL_CFLAGS := -MMD -MP -O2 -Wall -Wextra -Werror -fanalyzer \
-  -Wshadow -Wdouble-promotion -Wformat=2 -Wformat-truncation \
+LOCAL_CFLAGS := -MMD -MP -O2 -std=c17 -Wall -Wextra -Werror -fanalyzer \
+  -Wshadow -Wdouble-promotion -Wformat=2 -Wformat-truncation -Wformat-overflow \
   -Wconversion -Wstrict-aliasing=3 -Wnull-dereference \
-  -Wuninitialized -Wvla -Walloca
+  -Wuninitialized -Wvla -Walloca -Wno-unused-parameter \
+  -Wwrite-strings -Wstrict-prototypes -Wold-style-definition \
+  -Wredundant-decls -Wnested-externs -Wmissing-include-dirs \
+  -fno-common -fstrict-overflow -fstack-protector-strong -Wcast-qual
+
+ifeq ($(CC),gcc)
+	LOCAL_CFLAGS += -Wjump-misses-init -Wlogical-op -Wduplicated-cond -Wduplicated-branches -Wrestrict
+endif
 
 MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 VENDOR_DIR := $(MAKEFILE_DIR)vendor

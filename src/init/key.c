@@ -10,8 +10,9 @@
 #include <errno.h>
 #include <mbedtls/constant_time.h>
 #include <mbedtls/ctr_drbg.h>
+#include <mbedtls/gcm.h>
 #include <mbedtls/hkdf.h>
-#include <stdbool.h>
+#include <mbedtls/x509_crt.h>
 #include <stdlib.h>
 #include <string.h>
 #include <tdx_attest.h>
@@ -19,97 +20,99 @@
 
 #define PORT 24516
 
-typedef struct _ecc_context {
+struct ecc_context {
 	mbedtls_ecp_group grp;
 	mbedtls_ctr_drbg_context drbg;
-} ecc_context;
+};
 
-static int init_ecc_context(ecc_context *ctx, int (*f_entropy)(void *, unsigned char *, size_t)) {
+static int init_ecc_context(struct ecc_context *ctx, int (*f_entropy)(void *, uint8_t *, size_t)) {
 	mbedtls_entropy_context entropy;
-	int ret = -1;
 
 	mbedtls_ecp_group_init(&(ctx->grp));
 	mbedtls_entropy_init(&entropy);
 	mbedtls_ctr_drbg_init(&(ctx->drbg));
 
-	if (mbedtls_ecp_group_load(&(ctx->grp), MBEDTLS_ECP_DP_SECP256K1) != 0) {
-		trace("mbedtls_ecp_group_load failed\n");
+	int err = mbedtls_ecp_group_load(&(ctx->grp), MBEDTLS_ECP_DP_SECP256K1);
+	if (err) {
+		trace("mbedtls_ecp_group_load failed: %d\n", err);
 		goto cleanup;
 	}
-	const unsigned char pers[] = "quex_init";
-	if (mbedtls_ctr_drbg_seed(&(ctx->drbg), f_entropy, &entropy, pers, sizeof(pers)) != 0) {
-		trace("mbedtls_ctr_drbg_seed failed\n");
+	const uint8_t pers[] = "quex_init";
+	err = mbedtls_ctr_drbg_seed(&(ctx->drbg), f_entropy, &entropy, pers, sizeof pers);
+	if (err) {
+		trace("mbedtls_ctr_drbg_seed failed: %d\n", err);
 		goto cleanup;
 	}
-	ret = 0;
+
 cleanup:
 	mbedtls_entropy_free(&entropy);
-	return ret;
+	return err;
 }
 
-static void free_ecc_context(ecc_context *ctx) {
+static void free_ecc_context(struct ecc_context *ctx) {
 	mbedtls_ctr_drbg_free(&(ctx->drbg));
 	mbedtls_ecp_group_free(&(ctx->grp));
 }
 
-static int gen_report_data(ecc_context *ctx, mbedtls_mpi *ephemeral_sk,
-                           tdx_report_data_t *report_data) {
+static int gen_report_data(struct ecc_context *ctx, mbedtls_mpi *out_ephemeral_sk,
+                           tdx_report_data_t *out_report_data) {
 	mbedtls_ecp_point ephemeral_pk;
-	int ret = -1;
 	mbedtls_ecp_point_init(&ephemeral_pk);
-	if ((ret = mbedtls_ecp_gen_keypair(&(ctx->grp), ephemeral_sk, &ephemeral_pk,
-	                                   mbedtls_ctr_drbg_random, &(ctx->drbg))) != 0) {
-		trace("mbedtls_ecp_gen_keypair failed: %d\n", ret);
+	int err = mbedtls_ecp_gen_keypair(&(ctx->grp), out_ephemeral_sk, &ephemeral_pk,
+	                                  mbedtls_ctr_drbg_random, &(ctx->drbg));
+	if (err) {
+		trace("mbedtls_ecp_gen_keypair failed: %d\n", err);
 		goto cleanup;
 	}
 
-	if ((ret = write_raw_pk(&(ctx->grp), &ephemeral_pk, report_data->d)) != 0) {
-		trace("mbedtls_ecp_point_write_binary failed: %d\n", ret);
+	err = write_raw_pk(&(ctx->grp), &ephemeral_pk, out_report_data->d);
+	if (err) {
+		trace("mbedtls_ecp_point_write_binary failed: %d\n", err);
 		goto cleanup;
 	}
 
-	ret = 0;
 cleanup:
 	mbedtls_ecp_point_free(&ephemeral_pk);
-	return ret;
+	return err;
 }
 
-static int mk_report_data(ecc_context *ctx, const uint8_t raw_sk[32],
-                          tdx_report_data_t *report_data) {
+static int mk_report_data(struct ecc_context *ctx, const uint8_t raw_sk[static 32],
+                          tdx_report_data_t *out_report_data) {
 	mbedtls_mpi sk;
 	mbedtls_ecp_point pk;
-	int ret = -1;
 	mbedtls_mpi_init(&sk);
 	mbedtls_ecp_point_init(&pk);
 
-	if ((ret = read_raw_sk(raw_sk, &sk)) != 0) {
-		trace("read_raw_sk failed: %d\n", ret);
+	int err = read_raw_sk(raw_sk, &sk);
+	if (err) {
+		trace("read_raw_sk failed: %d\n", err);
 		goto cleanup;
 	}
 
-	if ((ret = mbedtls_ecp_mul(&(ctx->grp), &pk, &sk, &ctx->grp.G, mbedtls_ctr_drbg_random,
-	                           &(ctx->drbg))) != 0) {
-		trace("mbedtls_ecp_mul failed: %d\n", ret);
+	err = mbedtls_ecp_mul(&(ctx->grp), &pk, &sk, &ctx->grp.G, mbedtls_ctr_drbg_random,
+	                      &(ctx->drbg));
+	if (err) {
+		trace("mbedtls_ecp_mul failed: %d\n", err);
 		goto cleanup;
 	}
 
-	if ((ret = write_raw_pk(&(ctx->grp), &pk, report_data->d)) != 0) {
-		trace("mbedtls_ecp_point_write_binary failed: %d\n", ret);
+	err = write_raw_pk(&(ctx->grp), &pk, out_report_data->d);
+	if (err) {
+		trace("mbedtls_ecp_point_write_binary failed: %d\n", err);
 		goto cleanup;
 	}
 
-	ret = 0;
 cleanup:
 	mbedtls_ecp_point_free(&pk);
 	mbedtls_mpi_free(&sk);
-	return ret;
+	return err;
 }
 
-static int decrypt_sk(ecc_context *ctx, mbedtls_mpi *ephemeral_sk, uint8_t ciphertext[QUEX_CT_LEN],
-                      uint8_t sk[32]) {
+static int decrypt_sk(struct ecc_context *ctx, const mbedtls_mpi *ephemeral_sk,
+                      const uint8_t ciphertext[static QUEX_CT_LEN], uint8_t out_sk[static 32]) {
 	uint8_t ikm[130] = {0};
 	uint8_t symmetric_key[32] = {0};
-	const unsigned char salt[] = "quex_salt";
+	const uint8_t salt[] = "quex_salt";
 	mbedtls_ecp_point ephemeral_pk;
 	mbedtls_ecp_point dh;
 	mbedtls_gcm_context gcm;
@@ -135,14 +138,14 @@ static int decrypt_sk(ecc_context *ctx, mbedtls_mpi *ephemeral_sk, uint8_t ciphe
 
 	size_t olen;
 	err = mbedtls_ecp_point_write_binary(&(ctx->grp), &ephemeral_pk,
-	                                     MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, ikm, sizeof(ikm));
+	                                     MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, ikm, sizeof ikm);
 	if (err) {
 		trace("mbedtls_ecp_point_write_binary(ephemeral_pk) failed: %d\n", err);
 		success = false;
 	}
 
 	err = mbedtls_ecp_point_write_binary(&(ctx->grp), &dh, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen,
-	                                     ikm + olen, sizeof(ikm) - olen);
+	                                     ikm + olen, sizeof ikm - olen);
 	if (err) {
 		trace("mbedtls_ecp_point_write_binary(dh) failed: %d\n", err);
 		success = false;
@@ -150,7 +153,7 @@ static int decrypt_sk(ecc_context *ctx, mbedtls_mpi *ephemeral_sk, uint8_t ciphe
 
 	err = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), salt,
 	                   9,                // salt
-	                   ikm, sizeof(ikm), // ikm
+	                   ikm, sizeof ikm,  // ikm
 	                   NULL, 0,          // info
 	                   symmetric_key, 32 // okm
 	);
@@ -166,14 +169,14 @@ static int decrypt_sk(ecc_context *ctx, mbedtls_mpi *ephemeral_sk, uint8_t ciphe
 	}
 
 	err = mbedtls_gcm_auth_decrypt(&gcm, 32, ciphertext + 64, 12, NULL, 0, ciphertext + 80, 16,
-	                               ciphertext + 96, sk);
+	                               ciphertext + 96, out_sk);
 	if (err) {
 		trace("mbedtls_gcm_auth_decrypt failed: %d\n", err);
 		success = false;
 	}
 
-	mbedtls_platform_zeroize(ikm, sizeof(ikm));
-	mbedtls_platform_zeroize(symmetric_key, sizeof(symmetric_key));
+	mbedtls_platform_zeroize(ikm, sizeof ikm);
+	mbedtls_platform_zeroize(symmetric_key, sizeof symmetric_key);
 	mbedtls_gcm_free(&gcm);
 	mbedtls_ecp_point_free(&ephemeral_pk);
 	mbedtls_ecp_point_free(&dh);
@@ -181,109 +184,123 @@ static int decrypt_sk(ecc_context *ctx, mbedtls_mpi *ephemeral_sk, uint8_t ciphe
 	return success ? 0 : -1;
 }
 
-static quoted_td_key_response_t *recv_response(int client) {
-	quoted_td_key_response_t response_part;
-	ssize_t received =
-	    recv(client, &response_part, sizeof(quoted_td_key_response_t), MSG_WAITALL);
-	if (received != sizeof(quoted_td_key_response_t)) {
+static int recv_response(int client, struct td_response_msg *out_msg, sgx_quote3_t **out_quote) {
+	ssize_t received = recv(client, out_msg, sizeof *out_msg, MSG_WAITALL);
+	if (received != sizeof *out_msg) {
 		if (received < 0) {
-			trace("Could not recv quoted_td_key_response: %s\n", strerror(errno));
+			trace("Could not recv td_response_msg: %s\n", strerror(errno));
 		} else {
-			trace("Could not recv quoted_td_key_response: expected %zu, got %zd\n",
-			      sizeof(quoted_td_key_response_t), received);
+			trace("Could not recv td_response_msg: expected %zu, got %zd\n",
+			      sizeof *out_msg, received);
 		}
-		return NULL;
+		return -1;
 	}
 
-	if (!is_quote_header_well_formed(&response_part.quote)) {
+	sgx_quote3_t quote_header = {0};
+	received = recv(client, &quote_header, sizeof quote_header, MSG_WAITALL);
+	if (received != sizeof quote_header) {
+		if (received < 0) {
+			trace("Could not recv sgx_quote3_t header: %s\n", strerror(errno));
+		} else {
+			trace("Could not recv sgx_quote3_t header: expected %zu, got %zd\n",
+			      sizeof quote_header, received);
+		}
+		return -1;
+	}
+
+	if (!is_quote_header_well_formed(&quote_header)) {
 		trace("Quote header is ill-formed\n");
-		return NULL;
+		return -1;
 	}
 
-	trace("Got quote version %d\n", response_part.quote.header.version);
+	trace("Got quote version %d\n", quote_header.header.version);
 
-	quoted_td_key_response_t *response =
-	    malloc(sizeof(quoted_td_key_response_t) + response_part.quote.signature_data_len);
+	sgx_quote3_t *quote = malloc(sizeof quote_header + quote_header.signature_data_len);
 
-	if (!response) {
-		trace("Could not malloc for quoted_td_key_response\n");
-		return NULL;
+	if (!quote) {
+		trace("Could not malloc for sgx_quote3_t\n");
+		return -1;
 	}
 
-	memcpy(response, &response_part, sizeof(quoted_td_key_response_t));
+	memcpy(quote, &quote_header, sizeof quote_header);
 
-	trace("Receiving %d bytes of quote signature...\n", response_part.quote.signature_data_len);
-	received = recv(client, (uint8_t *)response + sizeof(quoted_td_key_response_t),
-	                response_part.quote.signature_data_len, MSG_WAITALL);
-	if (received != response_part.quote.signature_data_len) {
+	trace("Receiving %d bytes of quote signature...\n", quote_header.signature_data_len);
+	received = recv(client, (uint8_t *)quote + sizeof quote_header,
+	                quote_header.signature_data_len, MSG_WAITALL);
+	if (received != quote_header.signature_data_len) {
 		if (received < 0) {
 			trace("Could not recv quote signature: %s\n", strerror(errno));
 		} else {
 			trace("Could not recv quote signature: expected %u, got %zd\n",
-			      response_part.quote.signature_data_len, received);
+			      quote_header.signature_data_len, received);
 		}
-		free(response);
-		return NULL;
+		free(quote);
+		return -1;
 	}
 
-	trace("Received %d bytes of quote signature\n", response_part.quote.signature_data_len);
+	trace("Received %d bytes of quote signature\n", quote_header.signature_data_len);
 
-	return response;
+	*out_quote = quote;
+
+	return 0;
 }
 
-static int compare_masked(sgx_report2_t *first, sgx_report2_t *second,
-                          td_key_request_mask_t *mask) {
+static int compare_masked(const sgx_report2_t *first, const sgx_report2_t *second,
+                          const struct td_key_request_mask *mask) {
 	sgx_report2_t first_masked;
 	sgx_report2_t second_masked;
-	memcpy(&first_masked, first, sizeof(sgx_report2_t));
-	memcpy(&second_masked, second, sizeof(sgx_report2_t));
+	memcpy(&first_masked, first, sizeof first_masked);
+	memcpy(&second_masked, second, sizeof second_masked);
 	apply_mask(&first_masked, mask);
 	apply_mask(&second_masked, mask);
-	return mbedtls_ct_memcmp(&first_masked, &second_masked, sizeof(sgx_report2_t));
+	return mbedtls_ct_memcmp(&first_masked, &second_masked, sizeof first_masked);
 }
 
-int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_mrenclave_hex,
-           const char *root_pem_path, const char *quote_path, const struct tdx_iface *tdx,
-           int (*f_entropy)(void *, unsigned char *, size_t)) {
-	int ret = -1;
+int get_sk(uint8_t out_sk[static 32], const char *key_request_mask_hex,
+           const char *vault_mrenclave_hex, const char *root_pem_path, const char *quote_path,
+           const struct tdx_iface *tdx, int (*f_entropy)(void *, uint8_t *, size_t)) {
 	int sock = -1;
 	uint8_t *p_quote_buf = NULL;
 
-	ecc_context ctx;
-	if ((ret = init_ecc_context(&ctx, f_entropy)) != 0) {
-		trace("init_ecc_context failed: %d\n", ret);
+	struct ecc_context ctx;
+	int err = init_ecc_context(&ctx, f_entropy);
+	if (err) {
+		trace("init_ecc_context failed: %d\n", err);
 		goto cleanup;
 	}
 
-	td_key_request_t key_request;
-	if ((ret = read_hex(key_request_mask_hex, (uint8_t *)&key_request.mask,
-	                    sizeof(td_key_request_mask_t))) != 0) {
-		trace("Could not read key request mask %s: %d\n", key_request_mask_hex, ret);
+	struct td_key_request key_request;
+	err = read_hex(key_request_mask_hex, (uint8_t *)&key_request.mask, sizeof key_request.mask);
+	if (err) {
+		trace("Could not read key request mask %s: %d\n", key_request_mask_hex, err);
 		goto cleanup;
 	}
 
 	sgx_measurement_t mr_enclave;
-	if ((ret = read_hex(vault_mrenclave_hex, (uint8_t *)&mr_enclave,
-	                    sizeof(sgx_measurement_t))) != 0) {
-		trace("Could not read vault mr_enclave %s: %d\n", vault_mrenclave_hex, ret);
+	err = read_hex(vault_mrenclave_hex, (uint8_t *)&mr_enclave, sizeof mr_enclave);
+	if (err) {
+		trace("Could not read vault mr_enclave %s: %d\n", vault_mrenclave_hex, err);
 		goto cleanup;
 	}
 
 	mbedtls_x509_crt root_crt;
 	mbedtls_x509_crt_init(&root_crt);
-	if ((ret = mbedtls_x509_crt_parse_file(&root_crt, root_pem_path)) != 0) {
-		trace("Could not load root certificate %s: %d\n", root_pem_path, ret);
+	err = mbedtls_x509_crt_parse_file(&root_crt, root_pem_path);
+	if (err) {
+		trace("Could not load root certificate %s: %d\n", root_pem_path, err);
 		goto cleanup;
 	}
 
 	sock = init_socket(PORT);
 	if (sock < 0) {
+		err = -1;
 		trace("init_socket(%d) failed: %d\n", PORT, sock);
 		goto cleanup;
 	}
 
 	bool got_sk = false;
 	while (!got_sk) {
+		int iter_err = 0;
 		trace("Waiting for a connection...\n");
 		int client = accept(sock, NULL, NULL);
 		if (client < 0) {
@@ -292,72 +309,78 @@ int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_m
 		}
 
 		mbedtls_mpi ephemeral_sk;
-		quoted_td_key_response_t *response = NULL;
 
 		mbedtls_mpi_init(&ephemeral_sk);
 
+		sgx_quote3_t *quote = NULL;
+
 		tdx_report_data_t report_data = {0};
-		if ((ret = gen_report_data(&ctx, &ephemeral_sk, &report_data)) != 0) {
-			trace("gen_report_data failed: %d\n", ret);
+		iter_err = gen_report_data(&ctx, &ephemeral_sk, &report_data);
+		if (iter_err) {
+			trace("gen_report_data failed: %d\n", iter_err);
 			goto cleanup_iteration;
 		}
 
-		if ((ret = tdx->get_report(&report_data, (tdx_report_t *)&key_request.tdreport)) !=
-		    TDX_ATTEST_SUCCESS) {
-			trace("tdx_att_get_report failed: %d\n", ret);
+		iter_err = tdx->get_report(&report_data, (tdx_report_t *)&key_request.tdreport);
+		if (iter_err != TDX_ATTEST_SUCCESS) {
+			trace("tdx_att_get_report failed: %d\n", iter_err);
 			goto cleanup_iteration;
 		}
 
 		trace("Sending key request...\n");
-		send(client, &key_request, sizeof(td_key_request_t), MSG_NOSIGNAL);
+		send(client, &key_request, sizeof key_request, MSG_NOSIGNAL);
 
-		response = recv_response(client);
-		if (!response) {
+		struct td_response_msg msg = {0};
+
+		iter_err = recv_response(client, &msg, &quote);
+		if (iter_err) {
 			trace("recv_response failed\n");
 			goto cleanup_iteration;
 		}
 
 		got_sk = true;
 
-		if (mbedtls_ct_memcmp(&(response->msg.mask), &key_request.mask,
-		                      sizeof(td_key_request_mask_t)) != 0) {
+		if (mbedtls_ct_memcmp(&(msg.mask), &key_request.mask, sizeof key_request.mask) !=
+		    0) {
 			trace("Masks do not match\n");
 			got_sk = false;
 		}
 
-		if (compare_masked(&(response->msg.tdreport), &key_request.tdreport,
-		                   &key_request.mask) != 0) {
+		if (compare_masked(&(msg.tdreport), &key_request.tdreport, &key_request.mask) !=
+		    0) {
 			trace("Masked reports do not match\n");
 			got_sk = false;
 		}
 
-		if (mbedtls_ct_memcmp(&(response->quote.report_body.mr_enclave), &mr_enclave,
-		                      sizeof(sgx_measurement_t)) != 0) {
+		if (mbedtls_ct_memcmp(&quote->report_body.mr_enclave, &mr_enclave,
+		                      sizeof mr_enclave) != 0) {
 			trace("Wrong mr_enclave\n");
 			got_sk = false;
 		}
 
-		if ((ret = verify_quote(&(response->quote), &root_crt)) != 0) {
-			trace("Invalid quote: %d\n", ret);
+		iter_err = verify_quote(quote, &root_crt);
+		if (iter_err) {
+			trace("Invalid quote: %d\n", iter_err);
 			got_sk = false;
 		}
 
-		unsigned char msg_hash[32];
-		if ((ret = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
-		                      (const unsigned char *)&(response->msg),
-		                      sizeof(response->msg), msg_hash)) != 0) {
-			trace("mbedtls_md failed: %d\n", ret);
+		uint8_t msg_hash[32];
+		iter_err = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (uint8_t *)&msg,
+		                      sizeof msg, msg_hash);
+		if (iter_err) {
+			trace("mbedtls_md failed: %d\n", iter_err);
 			got_sk = false;
 		}
 
-		if (mbedtls_ct_memcmp(&(response->quote.report_body.report_data), msg_hash,
-		                      sizeof(msg_hash)) != 0) {
+		if (mbedtls_ct_memcmp(&quote->report_body.report_data, msg_hash, sizeof msg_hash) !=
+		    0) {
 			trace("Quote report data does not contain message hash\n");
 			got_sk = false;
 		}
 
-		if ((ret = decrypt_sk(&ctx, &ephemeral_sk, response->msg.ciphertext, sk)) != 0) {
-			trace("decrypt_sk failed: %d\n", ret);
+		iter_err = decrypt_sk(&ctx, &ephemeral_sk, msg.ciphertext, out_sk);
+		if (iter_err) {
+			trace("decrypt_sk failed: %d\n", iter_err);
 			got_sk = false;
 		}
 
@@ -365,40 +388,43 @@ int get_sk(uint8_t sk[32], const char *key_request_mask_hex, const char *vault_m
 
 	cleanup_iteration:
 		mbedtls_mpi_free(&ephemeral_sk);
-		if (response) {
-			free(response);
+		if (quote) {
+			free(quote);
 		}
 		close(client);
 	}
 
 	tdx_report_data_t report_data = {0};
-	if ((ret = mk_report_data(&ctx, sk, &report_data)) != 0) {
-		trace("mk_report_data failed: %d\n", ret);
+	err = mk_report_data(&ctx, out_sk, &report_data);
+	if (err) {
+		trace("mk_report_data failed: %d\n", err);
 		goto cleanup;
 	}
 
-	if ((ret = tdx->get_report(&report_data, (tdx_report_t *)&key_request.tdreport)) !=
-	    TDX_ATTEST_SUCCESS) {
-		trace("tdx_att_get_report failed: %d\n", ret);
+	err = tdx->get_report(&report_data, (tdx_report_t *)&key_request.tdreport);
+	if (err != TDX_ATTEST_SUCCESS) {
+		trace("tdx_att_get_report failed: %d\n", err);
 		goto cleanup;
 	}
 
 	if (quote_path) {
 		tdx_uuid_t selected_att_key_id = {0};
 		uint32_t quote_size = 0;
-		if ((ret = tdx->get_quote(&report_data, NULL, 0, &selected_att_key_id, &p_quote_buf,
-		                          &quote_size, 0)) != TDX_ATTEST_SUCCESS) {
-			trace("tdx_att_get_quote failed: %d\n", ret);
+
+		err = tdx->get_quote(&report_data, NULL, 0, &selected_att_key_id, &p_quote_buf,
+		                     &quote_size, 0);
+		if (err != TDX_ATTEST_SUCCESS) {
+			trace("tdx_att_get_quote failed: %d\n", err);
 			goto cleanup;
 		}
 
-		if ((ret = write_hex_to_file(quote_path, p_quote_buf, quote_size))) {
-			trace("write_hex_to_file failed: %d\n", ret);
+		err = write_hex_to_file(quote_path, p_quote_buf, quote_size);
+		if (err) {
+			trace("write_hex_to_file failed: %d\n", err);
 			goto cleanup;
 		}
 	}
 
-	ret = 0;
 cleanup:
 	if (p_quote_buf != NULL) {
 		tdx->free_quote(p_quote_buf);
@@ -408,5 +434,5 @@ cleanup:
 	}
 	mbedtls_x509_crt_free(&root_crt);
 	free_ecc_context(&ctx);
-	return ret;
+	return err;
 }

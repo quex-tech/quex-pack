@@ -5,7 +5,7 @@
 #include <string.h>
 #include <sys/mount.h>
 
-static void test_parse_mount_spec_basic_ok() {
+static void test_parse_mount_spec_basic_ok(void) {
 	char valid[] = "/dev/vda1:/mnt/data:ext4:ro,noexec,nosuid";
 	struct mount_spec spec = {0};
 
@@ -18,7 +18,7 @@ static void test_parse_mount_spec_basic_ok() {
 	must(spec.flags == expected_flags, "flags must be RDONLY | NOEXEC | NOSUID");
 }
 
-static void test_parse_mount_spec_rw_and_flags() {
+static void test_parse_mount_spec_rw_and_flags(void) {
 	char valid[] = "src:dst:xfs:rw,relatime,nodev";
 	struct mount_spec spec = {0};
 
@@ -30,7 +30,7 @@ static void test_parse_mount_spec_rw_and_flags() {
 	must(spec.flags == expected_flags, "flags must be RELATIME | NODEV");
 }
 
-static void test_parse_mount_spec_no_options() {
+static void test_parse_mount_spec_no_options(void) {
 	char valid[] = "src:/mnt:ext4";
 	struct mount_spec spec = {0};
 
@@ -38,7 +38,7 @@ static void test_parse_mount_spec_no_options() {
 	must(spec.flags == 0, "flags must be 0 when no options are provided");
 }
 
-static void test_parse_mount_spec_unknown_option_ignored() {
+static void test_parse_mount_spec_unknown_option_ignored(void) {
 	char valid[] = "s:t:ext4:florb,ro";
 	struct mount_spec spec = {0};
 
@@ -46,7 +46,7 @@ static void test_parse_mount_spec_unknown_option_ignored() {
 	must(spec.flags == MS_RDONLY, "only known option ro must be applied");
 }
 
-static void test_parse_mount_spec_invalid() {
+static void test_parse_mount_spec_invalid(void) {
 	struct mount_spec spec = {0};
 	char no_fstype[] = "src:dst";
 	char no_target[] = "src::ext4";
@@ -61,7 +61,7 @@ static void test_parse_mount_spec_invalid() {
 	must(parse_mount_spec(valid, NULL) == -1, "NULL output must fail");
 }
 
-static void test_mount() {
+static void test_mount(void) {
 	test_parse_mount_spec_basic_ok();
 	test_parse_mount_spec_rw_and_flags();
 	test_parse_mount_spec_no_options();

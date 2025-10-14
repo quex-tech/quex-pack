@@ -46,15 +46,13 @@ struct init_parameters {
 	size_t crypt_specs_len;
 };
 
-static int parse_init_parameter(char *arg, struct init_parameters *parsed) {
-	int err = 0;
-
+static int parse_init_parameter(const char *arg, struct init_parameters *parsed) {
 	char *eq = strchr(arg, '=');
 	if (!eq) {
 		return 0;
 	}
 
-	const char *value = eq + 1;
+	char *value = eq + 1;
 
 	if (strncmp(arg, "key_request_mask=", strlen("key_request_mask=")) == 0) {
 		parsed->key_request_mask = value;
@@ -80,7 +78,7 @@ static int parse_init_parameter(char *arg, struct init_parameters *parsed) {
 			trace("Too many disks\n");
 			return -1;
 		}
-		err = parse_integrity_spec(
+		int err = parse_integrity_spec(
 		    (char *)value, &(parsed->integrity_specs[parsed->integrity_specs_len++]));
 		if (err) {
 			trace("parse_integrity_spec failed: %d\n", err);
@@ -94,7 +92,7 @@ static int parse_init_parameter(char *arg, struct init_parameters *parsed) {
 			trace("Too many disks\n");
 			return -1;
 		}
-		err = parse_crypt_spec((char *)value,
+		int err = parse_crypt_spec((char *)value,
 		                       &(parsed->crypt_specs[parsed->crypt_specs_len++]));
 		if (err) {
 			trace("parse_crypt_spec failed: %d\n", err);
@@ -108,7 +106,7 @@ static int parse_init_parameter(char *arg, struct init_parameters *parsed) {
 			trace("Too many disks\n");
 			return -1;
 		}
-		err =
+		int err =
 		    parse_mkfs_spec((char *)value, &(parsed->mkfs_specs[parsed->mkfs_specs_len++]));
 		if (err) {
 			trace("parse_mkfs_spec failed: %d\n", err);
@@ -122,7 +120,7 @@ static int parse_init_parameter(char *arg, struct init_parameters *parsed) {
 			trace("Too many disks\n");
 			return -1;
 		}
-		err = parse_mount_spec((char *)value,
+		int err = parse_mount_spec((char *)value,
 		                       &(parsed->mount_specs[parsed->mount_specs_len++]));
 		if (err) {
 			trace("parse_mount_spec failed: %d\n", err);
@@ -134,15 +132,15 @@ static int parse_init_parameter(char *arg, struct init_parameters *parsed) {
 	return 0;
 }
 
-static int handle_integrity(unsigned char *prk, size_t prk_len, const mbedtls_md_info_t *md,
+static int handle_integrity(uint8_t *prk, size_t prk_len, const mbedtls_md_info_t *md,
                             struct integrity_spec spec) {
 	uint8_t integrity_sk[32] = {0};
 	char integrity_sk_info[512] = {0};
-	snprintf(integrity_sk_info, sizeof(integrity_sk_info), "integrity:%s:%s:mac", spec.dev,
+	snprintf(integrity_sk_info, sizeof integrity_sk_info, "integrity:%s:%s:mac", spec.dev,
 	         spec.name);
 	int err =
 	    mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)integrity_sk_info,
-	                        sizeof(integrity_sk_info), integrity_sk, sizeof(integrity_sk));
+	                        sizeof integrity_sk_info, integrity_sk, sizeof integrity_sk);
 	if (err) {
 		trace("mbedtls_hkdf_expand failed: %d\n", err);
 		goto cleanup;
@@ -150,11 +148,11 @@ static int handle_integrity(unsigned char *prk, size_t prk_len, const mbedtls_md
 
 	uint8_t integrity_journal_crypt_sk[32] = {0};
 	char integrity_journal_crypt_sk_info[512] = {0};
-	snprintf(integrity_journal_crypt_sk_info, sizeof(integrity_journal_crypt_sk_info),
+	snprintf(integrity_journal_crypt_sk_info, sizeof integrity_journal_crypt_sk_info,
 	         "integrity:%s:%s:journal_crypt", spec.dev, spec.name);
 	err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)integrity_journal_crypt_sk_info,
-	                          sizeof(integrity_journal_crypt_sk_info),
-	                          integrity_journal_crypt_sk, sizeof(integrity_journal_crypt_sk));
+	                          sizeof integrity_journal_crypt_sk_info,
+	                          integrity_journal_crypt_sk, sizeof integrity_journal_crypt_sk);
 	if (err) {
 		trace("mbedtls_hkdf_expand failed: %d\n", err);
 		goto cleanup;
@@ -173,14 +171,14 @@ cleanup:
 	return err;
 }
 
-static int handle_crypt(unsigned char *prk, size_t prk_len, const mbedtls_md_info_t *md,
+static int handle_crypt(uint8_t *prk, size_t prk_len, const mbedtls_md_info_t *md,
                         struct crypt_spec spec) {
 	int err = 0;
 	uint8_t crypt_sk[32] = {0};
 	char crypt_sk_info[512] = {0};
-	snprintf(crypt_sk_info, sizeof(crypt_sk_info), "crypt=%s:%s", spec.dev, spec.name);
+	snprintf(crypt_sk_info, sizeof crypt_sk_info, "crypt=%s:%s", spec.dev, spec.name);
 	err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_sk_info, strlen(crypt_sk_info),
-	                          crypt_sk, sizeof(crypt_sk));
+	                          crypt_sk, sizeof crypt_sk);
 	if (err) {
 		trace("mbedtls_hkdf_expand failed: %d\n", err);
 		goto cleanup;
@@ -188,11 +186,11 @@ static int handle_crypt(unsigned char *prk, size_t prk_len, const mbedtls_md_inf
 
 	uint8_t crypt_journal_crypt_sk[32] = {0};
 	char crypt_journal_crypt_sk_info[512] = {0};
-	snprintf(crypt_journal_crypt_sk_info, sizeof(crypt_journal_crypt_sk_info),
+	snprintf(crypt_journal_crypt_sk_info, sizeof crypt_journal_crypt_sk_info,
 	         "crypt:%s:%s:journal_crypt", spec.dev, spec.name);
 	err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_journal_crypt_sk_info,
 	                          strlen(crypt_journal_crypt_sk_info), crypt_journal_crypt_sk,
-	                          sizeof(crypt_journal_crypt_sk));
+	                          sizeof crypt_journal_crypt_sk);
 	if (err) {
 		trace("mbedtls_hkdf_expand failed: %d\n", err);
 		goto cleanup;
@@ -200,11 +198,11 @@ static int handle_crypt(unsigned char *prk, size_t prk_len, const mbedtls_md_inf
 
 	uint8_t crypt_journal_mac_sk[32] = {0};
 	char crypt_journal_mac_sk_info[512] = {0};
-	snprintf(crypt_journal_mac_sk_info, sizeof(crypt_journal_mac_sk_info),
+	snprintf(crypt_journal_mac_sk_info, sizeof crypt_journal_mac_sk_info,
 	         "crypt:%s:%s:journal_mac", spec.dev, spec.name);
 	err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_journal_mac_sk_info,
 	                          strlen(crypt_journal_mac_sk_info), crypt_journal_mac_sk,
-	                          sizeof(crypt_journal_mac_sk));
+	                          sizeof crypt_journal_mac_sk);
 	if (err) {
 		trace("mbedtls_hkdf_expand failed: %d\n", err);
 		goto cleanup;
@@ -285,11 +283,11 @@ int init(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	unsigned char prk[MBEDTLS_MD_MAX_SIZE];
+	uint8_t prk[MBEDTLS_MD_MAX_SIZE];
 	const mbedtls_md_info_t *md = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
 	const size_t prk_len = mbedtls_md_get_size(md);
 
-	err = mbedtls_hkdf_extract(md, hkdf_salt, sizeof(hkdf_salt), sk, sizeof(sk), prk);
+	err = mbedtls_hkdf_extract(md, hkdf_salt, sizeof hkdf_salt, sk, sizeof sk, prk);
 	if (err) {
 		trace("mbedtls_hkdf_extract failed: %d\n", err);
 		goto cleanup;
@@ -333,7 +331,7 @@ int init(int argc, char *argv[]) {
 	}
 
 	char config_path[256] = {0};
-	snprintf(config_path, sizeof(config_path), "%s/config.json", parameters.workload_path);
+	snprintf(config_path, sizeof config_path, "%s/config.json", parameters.workload_path);
 	err = copy_file(config_path, BUNDLE_CONFIG_PATH);
 	if (err) {
 		trace("Cannot copy %s to %s\n", config_path, BUNDLE_CONFIG_PATH);
@@ -341,9 +339,9 @@ int init(int argc, char *argv[]) {
 	}
 
 	char key_env_var[] = SECRET_KEY_TEMPLATE;
-	write_hex(sk, sizeof(sk), key_env_var + strlen("TD_SECRET_KEY="));
+	write_hex(sk, sizeof sk, key_env_var + strlen("TD_SECRET_KEY="));
 	replace_in_file(BUNDLE_CONFIG_PATH, SECRET_KEY_TEMPLATE, key_env_var);
-	mbedtls_platform_zeroize(key_env_var, sizeof(SECRET_KEY_TEMPLATE));
+	mbedtls_platform_zeroize(key_env_var, sizeof SECRET_KEY_TEMPLATE);
 
 	const char *exec_argv[] = {"crun",
 	                           "run",
@@ -357,8 +355,11 @@ int init(int argc, char *argv[]) {
 	const char *exec_envp[] = {NULL};
 
 	pid_t pid;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
 	err = posix_spawn(&pid, "/usr/bin/crun", NULL, NULL, (char *const *)exec_argv,
 	                  (char *const *)exec_envp);
+#pragma GCC diagnostic pop
 	if (err) {
 		trace("posix_spawn failed: %s\n", strerror(err));
 		goto cleanup;

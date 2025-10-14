@@ -16,7 +16,7 @@
 
 #define MAX_QUOTE_SIGNATURE_DATA_LENGTH 16384
 
-bool is_quote_header_well_formed(sgx_quote3_t *quote) {
+bool is_quote_header_well_formed(const sgx_quote3_t *quote) {
 	trace("Checking if quote is well-formed...\n");
 	bool is_well_formed = true;
 
@@ -58,66 +58,87 @@ bool is_quote_header_well_formed(sgx_quote3_t *quote) {
 	return is_well_formed;
 }
 
-struct parsed_quote {
-	uint8_t *quote;
-	sgx_ql_ecdsa_sig_data_t sig_data_header;
-	sgx_ql_auth_data_t auth_data_header;
-	uint8_t *auth_data;
-	sgx_ql_certification_data_t crt_data_header;
-	uint8_t *crt_data;
+#pragma pack(push, 1)
+
+struct ql_ecdsa_sig_data_header {
+	uint8_t sig[64];
+	uint8_t attest_pub_key[64];
+	sgx_report_body_t qe_report;
+	uint8_t qe_report_sig[64];
 };
 
-int parse_quote(sgx_quote3_t *quote, struct parsed_quote *parsed) {
-	parsed->quote = (uint8_t *)quote;
+struct ql_auth_data_header {
+	uint16_t size;
+};
 
-	uint8_t *p = (uint8_t *)quote->signature_data;
+struct ql_certification_data_header {
+	uint16_t cert_key_type;
+	uint32_t size;
+};
+
+#pragma pack(pop)
+
+struct parsed_quote {
+	const uint8_t *quote;
+	struct ql_ecdsa_sig_data_header sig_data_header;
+	struct ql_auth_data_header auth_data_header;
+	const uint8_t *auth_data;
+	struct ql_certification_data_header crt_data_header;
+	const uint8_t *crt_data;
+};
+
+static int parse_quote(const sgx_quote3_t *quote, struct parsed_quote *out_quote) {
+	out_quote->quote = (const uint8_t *)quote;
+
+	const uint8_t *p = (const uint8_t *)quote->signature_data;
 	uint64_t remaining = quote->signature_data_len;
 
-	if (remaining < sizeof parsed->sig_data_header) {
+	if (remaining < sizeof out_quote->sig_data_header) {
 		trace("Not enough bytes for sig_data_header\n");
 		return -1;
 	}
-	memcpy(&parsed->sig_data_header, p, sizeof parsed->sig_data_header);
-	p += sizeof parsed->sig_data_header;
-	remaining -= sizeof parsed->sig_data_header;
+	memcpy(&out_quote->sig_data_header, p, sizeof out_quote->sig_data_header);
+	p += sizeof out_quote->sig_data_header;
+	remaining -= sizeof out_quote->sig_data_header;
 
-	if (remaining < sizeof parsed->auth_data_header) {
+	if (remaining < sizeof out_quote->auth_data_header) {
 		trace("Not enough bytes for auth_data_header\n");
 		return -1;
 	}
-	memcpy(&parsed->auth_data_header, p, sizeof parsed->auth_data_header);
-	p += sizeof parsed->auth_data_header;
-	remaining -= sizeof parsed->auth_data_header;
+	memcpy(&out_quote->auth_data_header, p, sizeof out_quote->auth_data_header);
+	p += sizeof out_quote->auth_data_header;
+	remaining -= sizeof out_quote->auth_data_header;
 
-	if (remaining < parsed->auth_data_header.size) {
+	if (remaining < out_quote->auth_data_header.size) {
 		trace("Not enough bytes for auth_data\n");
 		return -1;
 	}
-	parsed->auth_data = p;
-	p += parsed->auth_data_header.size;
-	remaining -= parsed->auth_data_header.size;
+	out_quote->auth_data = p;
+	p += out_quote->auth_data_header.size;
+	remaining -= out_quote->auth_data_header.size;
 
-	if (remaining < sizeof parsed->crt_data_header) {
+	if (remaining < sizeof out_quote->crt_data_header) {
 		trace("Not enough bytes for crt_data_header\n");
 		return -1;
 	}
-	memcpy(&parsed->crt_data_header, p, sizeof parsed->crt_data_header);
-	p += sizeof parsed->crt_data_header;
-	remaining -= sizeof parsed->crt_data_header;
+	memcpy(&out_quote->crt_data_header, p, sizeof out_quote->crt_data_header);
+	p += sizeof out_quote->crt_data_header;
+	remaining -= sizeof out_quote->crt_data_header;
 
-	if (remaining != parsed->crt_data_header.size) {
+	if (remaining != out_quote->crt_data_header.size) {
 		trace("Not enough or more than needed bytes for crt_data\n");
 		return -1;
 	}
-	parsed->crt_data = p;
+	out_quote->crt_data = p;
 	return 0;
 }
 
-static int verify_sig(mbedtls_pk_context *pk, uint8_t sig[64], uint8_t *msg, size_t msg_len) {
+static int verify_sig(mbedtls_pk_context *pk, const uint8_t sig[static 64], const uint8_t *msg,
+                      size_t msg_len) {
 	trace("Verifying a signature...\n");
 	uint8_t sig_der[MBEDTLS_ECDSA_MAX_LEN] = {0};
 	size_t sig_der_len = MBEDTLS_ECDSA_MAX_LEN;
-	unsigned char hash[32] = {0};
+	uint8_t hash[32] = {0};
 	bool signature_is_valid = true;
 
 	int err = rs_to_der(sig, sig_der, sig_der_len, &sig_der_len);
@@ -126,7 +147,7 @@ static int verify_sig(mbedtls_pk_context *pk, uint8_t sig[64], uint8_t *msg, siz
 		signature_is_valid = false;
 	}
 
-	err = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const unsigned char *)msg,
+	err = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const uint8_t *)msg,
 	                 msg_len, hash);
 	if (err) {
 		trace("mbedtls_md failed: %d\n", err);
@@ -144,7 +165,7 @@ static int verify_sig(mbedtls_pk_context *pk, uint8_t sig[64], uint8_t *msg, siz
 	return signature_is_valid ? 0 : -1;
 }
 
-static int verify_qe_report_sig(struct parsed_quote *quote, mbedtls_x509_crt *root_crt) {
+static int verify_qe_report_sig(const struct parsed_quote *quote, mbedtls_x509_crt *root_crt) {
 	trace("Verifying QE report signature...\n");
 	mbedtls_x509_crt pck_crt;
 	uint32_t flags = 0;
@@ -195,7 +216,8 @@ static int verify_qe_report_sig(struct parsed_quote *quote, mbedtls_x509_crt *ro
 	}
 
 	err = verify_sig(&pck_crt.pk, quote->sig_data_header.qe_report_sig,
-	                 (uint8_t *)&quote->sig_data_header.qe_report, sizeof(sgx_report_body_t));
+	                 (const uint8_t *)&quote->sig_data_header.qe_report,
+	                 sizeof(sgx_report_body_t));
 	if (err) {
 		trace("Invalid QE report signature: %d\n", err);
 		signature_is_valid = false;
@@ -207,7 +229,7 @@ static int verify_qe_report_sig(struct parsed_quote *quote, mbedtls_x509_crt *ro
 	return signature_is_valid ? 0 : -1;
 }
 
-static int verify_attest_key_hash(struct parsed_quote *quote) {
+static int verify_attest_key_hash(const struct parsed_quote *quote) {
 	trace("Verifying attestation key hash...\n");
 	uint8_t expected_report_data[SGX_REPORT_DATA_SIZE] = {0};
 	uint8_t *hash_preimage = NULL;
@@ -226,10 +248,10 @@ static int verify_attest_key_hash(struct parsed_quote *quote) {
 
 	bool hash_is_valid = true;
 
-	int err = mbedtls_md(
-	    mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const unsigned char *)hash_preimage,
-	    sizeof quote->sig_data_header.attest_pub_key + quote->auth_data_header.size,
-	    expected_report_data);
+	int err =
+	    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), hash_preimage,
+	               sizeof quote->sig_data_header.attest_pub_key + quote->auth_data_header.size,
+	               expected_report_data);
 	if (err) {
 		trace("mbedtls_md failed: %d\n", err);
 		hash_is_valid = false;
@@ -248,7 +270,7 @@ static int verify_attest_key_hash(struct parsed_quote *quote) {
 	return hash_is_valid ? 0 : -1;
 }
 
-static int verify_quote_sig(struct parsed_quote *quote) {
+static int verify_quote_sig(const struct parsed_quote *quote) {
 	trace("Verifying quote signature...\n");
 
 	uint8_t pk_der[128] = {0};
@@ -285,7 +307,7 @@ static int verify_quote_sig(struct parsed_quote *quote) {
 	return signature_is_valid ? 0 : -1;
 }
 
-int verify_quote(sgx_quote3_t *quote, mbedtls_x509_crt *root_crt) {
+int verify_quote(const sgx_quote3_t *quote, mbedtls_x509_crt *root_crt) {
 	trace("Verifying quote...\n");
 
 	struct parsed_quote parsed = {0};
