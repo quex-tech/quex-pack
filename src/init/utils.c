@@ -199,7 +199,10 @@ int zeroize_device(const char *dev_path, uint64_t len) {
 		fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
 	}
 
-	if (ioctl(fd, BLKZEROOUT, &(struct {uint64_t start; uint64_t length;}){0, len}) == -1) {
+	if (ioctl(fd, BLKZEROOUT, &(struct {
+		          uint64_t start;
+		          uint64_t length;
+	          }){0, len}) == -1) {
 		err = -errno;
 		trace("ioctl(BLKZEROOT) %s failed: %s\n", dev_path, strerror(errno));
 		goto cleanup;

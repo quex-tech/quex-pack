@@ -28,17 +28,17 @@ struct ecc_context {
 static int init_ecc_context(struct ecc_context *ctx, int (*f_entropy)(void *, uint8_t *, size_t)) {
 	mbedtls_entropy_context entropy;
 
-	mbedtls_ecp_group_init(&(ctx->grp));
+	mbedtls_ecp_group_init(&ctx->grp);
 	mbedtls_entropy_init(&entropy);
-	mbedtls_ctr_drbg_init(&(ctx->drbg));
+	mbedtls_ctr_drbg_init(&ctx->drbg);
 
-	int err = mbedtls_ecp_group_load(&(ctx->grp), MBEDTLS_ECP_DP_SECP256K1);
+	int err = mbedtls_ecp_group_load(&ctx->grp, MBEDTLS_ECP_DP_SECP256K1);
 	if (err) {
 		trace("mbedtls_ecp_group_load failed: %d\n", err);
 		goto cleanup;
 	}
 	const uint8_t pers[] = "quex_init";
-	err = mbedtls_ctr_drbg_seed(&(ctx->drbg), f_entropy, &entropy, pers, sizeof pers);
+	err = mbedtls_ctr_drbg_seed(&ctx->drbg, f_entropy, &entropy, pers, sizeof pers);
 	if (err) {
 		trace("mbedtls_ctr_drbg_seed failed: %d\n", err);
 		goto cleanup;
@@ -50,22 +50,22 @@ cleanup:
 }
 
 static void free_ecc_context(struct ecc_context *ctx) {
-	mbedtls_ctr_drbg_free(&(ctx->drbg));
-	mbedtls_ecp_group_free(&(ctx->grp));
+	mbedtls_ctr_drbg_free(&ctx->drbg);
+	mbedtls_ecp_group_free(&ctx->grp);
 }
 
 static int gen_report_data(struct ecc_context *ctx, mbedtls_mpi *out_ephemeral_sk,
                            tdx_report_data_t *out_report_data) {
 	mbedtls_ecp_point ephemeral_pk;
 	mbedtls_ecp_point_init(&ephemeral_pk);
-	int err = mbedtls_ecp_gen_keypair(&(ctx->grp), out_ephemeral_sk, &ephemeral_pk,
-	                                  mbedtls_ctr_drbg_random, &(ctx->drbg));
+	int err = mbedtls_ecp_gen_keypair(&ctx->grp, out_ephemeral_sk, &ephemeral_pk,
+	                                  mbedtls_ctr_drbg_random, &ctx->drbg);
 	if (err) {
 		trace("mbedtls_ecp_gen_keypair failed: %d\n", err);
 		goto cleanup;
 	}
 
-	err = write_raw_pk(&(ctx->grp), &ephemeral_pk, out_report_data->d);
+	err = write_raw_pk(&ctx->grp, &ephemeral_pk, out_report_data->d);
 	if (err) {
 		trace("mbedtls_ecp_point_write_binary failed: %d\n", err);
 		goto cleanup;
@@ -76,8 +76,8 @@ cleanup:
 	return err;
 }
 
-static int mk_report_data(struct ecc_context *ctx, const uint8_t raw_sk[static 32],
-                          tdx_report_data_t *out_report_data) {
+static int get_pk(struct ecc_context *ctx, const uint8_t raw_sk[static 32],
+                  uint8_t out_pk[static 64]) {
 	mbedtls_mpi sk;
 	mbedtls_ecp_point pk;
 	mbedtls_mpi_init(&sk);
@@ -89,16 +89,16 @@ static int mk_report_data(struct ecc_context *ctx, const uint8_t raw_sk[static 3
 		goto cleanup;
 	}
 
-	err = mbedtls_ecp_mul(&(ctx->grp), &pk, &sk, &ctx->grp.G, mbedtls_ctr_drbg_random,
-	                      &(ctx->drbg));
+	err =
+	    mbedtls_ecp_mul(&ctx->grp, &pk, &sk, &ctx->grp.G, mbedtls_ctr_drbg_random, &ctx->drbg);
 	if (err) {
 		trace("mbedtls_ecp_mul failed: %d\n", err);
 		goto cleanup;
 	}
 
-	err = write_raw_pk(&(ctx->grp), &pk, out_report_data->d);
+	err = write_raw_pk(&ctx->grp, &pk, out_pk);
 	if (err) {
-		trace("mbedtls_ecp_point_write_binary failed: %d\n", err);
+		trace("write_raw_pk failed: %d\n", err);
 		goto cleanup;
 	}
 
@@ -123,28 +123,28 @@ static int decrypt_sk(struct ecc_context *ctx, const mbedtls_mpi *ephemeral_sk,
 
 	bool success = true;
 
-	int err = read_raw_pk(&(ctx->grp), ciphertext, &ephemeral_pk);
+	int err = read_raw_pk(&ctx->grp, ciphertext, &ephemeral_pk);
 	if (err) {
 		trace("read_raw_pk failed: %d\n", err);
 		success = false;
 	}
 
-	err = mbedtls_ecp_mul(&(ctx->grp), &dh, ephemeral_sk, &ephemeral_pk,
-	                      mbedtls_ctr_drbg_random, &(ctx->drbg));
+	err = mbedtls_ecp_mul(&ctx->grp, &dh, ephemeral_sk, &ephemeral_pk, mbedtls_ctr_drbg_random,
+	                      &ctx->drbg);
 	if (err) {
 		trace("mbedtls_ecp_mul failed: %d\n", err);
 		success = false;
 	}
 
 	size_t olen;
-	err = mbedtls_ecp_point_write_binary(&(ctx->grp), &ephemeral_pk,
-	                                     MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, ikm, sizeof ikm);
+	err = mbedtls_ecp_point_write_binary(&ctx->grp, &ephemeral_pk, MBEDTLS_ECP_PF_UNCOMPRESSED,
+	                                     &olen, ikm, sizeof ikm);
 	if (err) {
 		trace("mbedtls_ecp_point_write_binary(ephemeral_pk) failed: %d\n", err);
 		success = false;
 	}
 
-	err = mbedtls_ecp_point_write_binary(&(ctx->grp), &dh, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen,
+	err = mbedtls_ecp_point_write_binary(&ctx->grp, &dh, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen,
 	                                     ikm + olen, sizeof ikm - olen);
 	if (err) {
 		trace("mbedtls_ecp_point_write_binary(dh) failed: %d\n", err);
@@ -256,11 +256,11 @@ static int compare_masked(const sgx_report2_t *first, const sgx_report2_t *secon
 	return mbedtls_ct_memcmp(&first_masked, &second_masked, sizeof first_masked);
 }
 
-int get_sk(uint8_t out_sk[static 32], const char *key_request_mask_hex,
-           const char *vault_mrenclave_hex, const char *root_pem_path, const char *quote_path,
-           const struct tdx_iface *tdx, int (*f_entropy)(void *, uint8_t *, size_t)) {
+int get_keys(const char *key_request_mask_hex, const char *vault_mrenclave_hex,
+             const char *root_pem_path, const struct tdx_iface *tdx,
+             int (*f_entropy)(void *, uint8_t *, size_t), uint8_t out_sk[static 32],
+             uint8_t out_pk[static 64]) {
 	int sock = -1;
-	uint8_t *p_quote_buf = NULL;
 
 	struct ecc_context ctx;
 	int err = init_ecc_context(&ctx, f_entropy);
@@ -340,14 +340,12 @@ int get_sk(uint8_t out_sk[static 32], const char *key_request_mask_hex,
 
 		got_sk = true;
 
-		if (mbedtls_ct_memcmp(&(msg.mask), &key_request.mask, sizeof key_request.mask) !=
-		    0) {
+		if (mbedtls_ct_memcmp(&msg.mask, &key_request.mask, sizeof key_request.mask) != 0) {
 			trace("Masks do not match\n");
 			got_sk = false;
 		}
 
-		if (compare_masked(&(msg.tdreport), &key_request.tdreport, &key_request.mask) !=
-		    0) {
+		if (compare_masked(&msg.tdreport, &key_request.tdreport, &key_request.mask) != 0) {
 			trace("Masked reports do not match\n");
 			got_sk = false;
 		}
@@ -394,41 +392,13 @@ int get_sk(uint8_t out_sk[static 32], const char *key_request_mask_hex,
 		close(client);
 	}
 
-	tdx_report_data_t report_data = {0};
-	err = mk_report_data(&ctx, out_sk, &report_data);
+	err = get_pk(&ctx, out_sk, out_pk);
 	if (err) {
-		trace("mk_report_data failed: %d\n", err);
+		trace("get_pk failed: %d\n", err);
 		goto cleanup;
-	}
-
-	err = tdx->get_report(&report_data, (tdx_report_t *)&key_request.tdreport);
-	if (err != TDX_ATTEST_SUCCESS) {
-		trace("tdx_att_get_report failed: %d\n", err);
-		goto cleanup;
-	}
-
-	if (quote_path) {
-		tdx_uuid_t selected_att_key_id = {0};
-		uint32_t quote_size = 0;
-
-		err = tdx->get_quote(&report_data, NULL, 0, &selected_att_key_id, &p_quote_buf,
-		                     &quote_size, 0);
-		if (err != TDX_ATTEST_SUCCESS) {
-			trace("tdx_att_get_quote failed: %d\n", err);
-			goto cleanup;
-		}
-
-		err = write_hex_to_file(quote_path, p_quote_buf, quote_size);
-		if (err) {
-			trace("write_hex_to_file failed: %d\n", err);
-			goto cleanup;
-		}
 	}
 
 cleanup:
-	if (p_quote_buf != NULL) {
-		tdx->free_quote(p_quote_buf);
-	}
 	if (sock >= 0) {
 		close(sock);
 	}

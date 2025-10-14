@@ -7,8 +7,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-int get_sk(uint8_t out_sk[static 32], const char *key_request_mask_hex,
-           const char *vault_mr_enclave_hex, const char *root_pem_path, const char *quote_path,
-           const struct tdx_iface *tdx, int (*f_entropy)(void *, uint8_t *, size_t));
+int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
+             const char *root_pem_path, const struct tdx_iface *tdx,
+             int (*f_entropy)(void *, uint8_t *, size_t), uint8_t out_sk[static 32],
+             uint8_t out_pk[static 64]);
 
 #endif

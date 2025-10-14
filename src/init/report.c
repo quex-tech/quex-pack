@@ -71,7 +71,7 @@ void apply_mask(sgx_report2_t *report, const struct td_key_request_mask *mask) {
 	_Static_assert(sizeof(tee_tcb_svn_t) == sizeof(struct tee_tcb_svn_t_parsed),
 	               "Size mismatch");
 
-	apply_report_mac_struct_mask(&(report->report_mac_struct), mask->reportmacstruct_mask);
+	apply_report_mac_struct_mask(&report->report_mac_struct, mask->reportmacstruct_mask);
 	apply_tee_tcb_info_mask(report->tee_tcb_info, mask->tee_tcb_info_mask);
 
 	mask_exp(mask->reserved_mask, 0, report->reserved);

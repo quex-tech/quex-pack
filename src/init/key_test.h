@@ -81,8 +81,9 @@ static tdx_attest_error_t mock_get_report(const tdx_report_data_t *p_tdx_report_
 	return TDX_ATTEST_SUCCESS;
 }
 
-struct get_sk_thread_args {
+struct get_keys_thread_args {
 	uint8_t sk_out[32];
+	uint8_t pk_out[64];
 	int ret_out;
 };
 
@@ -92,16 +93,16 @@ static int no_entropy(void *data, uint8_t *output, size_t len) {
 	return 0;
 }
 
-static void *get_sk_thread_main(void *arg) {
-	struct get_sk_thread_args *a = (struct get_sk_thread_args *)arg;
+static void *get_keys_thread_main(void *arg) {
+	struct get_keys_thread_args *a = arg;
 	struct tdx_iface mock_tdx_ops = {
 	    .get_quote = mock_get_quote,
 	    .free_quote = mock_free_quote,
 	    .get_report = mock_get_report,
 	};
-	a->ret_out = get_sk(a->sk_out, "04030000c70000",
-	                    "231c8240fb43d8ee81a813a3a3fb05e3b9f1ae9064fe4d8629cf691a58d74112",
-	                    "./test_data/root.pem", NULL, &mock_tdx_ops, no_entropy);
+	a->ret_out = get_keys(
+	    "04030000c70000", "231c8240fb43d8ee81a813a3a3fb05e3b9f1ae9064fe4d8629cf691a58d74112",
+	    "./test_data/root.pem", &mock_tdx_ops, no_entropy, a->sk_out, a->pk_out);
 	return NULL;
 }
 
@@ -122,7 +123,7 @@ static int connect_sock(void) {
 	return fd;
 }
 
-static void test_get_sk(void) {
+static void test_get_keys(void) {
 	int fd = 0;
 
 	uint8_t *key_msg_blob = NULL;
@@ -139,13 +140,13 @@ static void test_get_sk(void) {
 		goto cleanup;
 	}
 
-	struct get_sk_thread_args args = {
+	struct get_keys_thread_args args = {
 	    .sk_out = {0},
 	    .ret_out = -1,
 	};
 
 	pthread_t th;
-	int perr = pthread_create(&th, NULL, get_sk_thread_main, &args);
+	int perr = pthread_create(&th, NULL, get_keys_thread_main, &args);
 	must(perr == 0, "pthread_create must succeed");
 	if (perr) {
 		goto cleanup;
@@ -176,7 +177,7 @@ static void test_get_sk(void) {
 		goto cleanup;
 	}
 
-	must(args.ret_out == 0, "get_sk must return success");
+	must(args.ret_out == 0, "get_keys must return success");
 cleanup:
 	free(key_msg_blob);
 	free(quote_blob);
@@ -185,4 +186,4 @@ cleanup:
 	}
 }
 
-static void test_key(void) { test_get_sk(); }
+static void test_key(void) { test_get_keys(); }

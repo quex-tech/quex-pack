@@ -79,7 +79,7 @@ static int parse_init_parameter(const char *arg, struct init_parameters *parsed)
 			return -1;
 		}
 		int err = parse_integrity_spec(
-		    (char *)value, &(parsed->integrity_specs[parsed->integrity_specs_len++]));
+		    (char *)value, &parsed->integrity_specs[parsed->integrity_specs_len++]);
 		if (err) {
 			trace("parse_integrity_spec failed: %d\n", err);
 			return err;
@@ -93,7 +93,7 @@ static int parse_init_parameter(const char *arg, struct init_parameters *parsed)
 			return -1;
 		}
 		int err = parse_crypt_spec((char *)value,
-		                       &(parsed->crypt_specs[parsed->crypt_specs_len++]));
+		                           &parsed->crypt_specs[parsed->crypt_specs_len++]);
 		if (err) {
 			trace("parse_crypt_spec failed: %d\n", err);
 			return err;
@@ -107,7 +107,7 @@ static int parse_init_parameter(const char *arg, struct init_parameters *parsed)
 			return -1;
 		}
 		int err =
-		    parse_mkfs_spec((char *)value, &(parsed->mkfs_specs[parsed->mkfs_specs_len++]));
+		    parse_mkfs_spec((char *)value, &parsed->mkfs_specs[parsed->mkfs_specs_len++]);
 		if (err) {
 			trace("parse_mkfs_spec failed: %d\n", err);
 			return err;
@@ -121,7 +121,7 @@ static int parse_init_parameter(const char *arg, struct init_parameters *parsed)
 			return -1;
 		}
 		int err = parse_mount_spec((char *)value,
-		                       &(parsed->mount_specs[parsed->mount_specs_len++]));
+		                           &parsed->mount_specs[parsed->mount_specs_len++]);
 		if (err) {
 			trace("parse_mount_spec failed: %d\n", err);
 			return err;
@@ -138,9 +138,8 @@ static int handle_integrity(uint8_t *prk, size_t prk_len, const mbedtls_md_info_
 	char integrity_sk_info[512] = {0};
 	snprintf(integrity_sk_info, sizeof integrity_sk_info, "integrity:%s:%s:mac", spec.dev,
 	         spec.name);
-	int err =
-	    mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)integrity_sk_info,
-	                        sizeof integrity_sk_info, integrity_sk, sizeof integrity_sk);
+	int err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)integrity_sk_info,
+	                              sizeof integrity_sk_info, integrity_sk, sizeof integrity_sk);
 	if (err) {
 		trace("mbedtls_hkdf_expand failed: %d\n", err);
 		goto cleanup;
@@ -222,6 +221,33 @@ cleanup:
 	return err;
 }
 
+static int save_quote(const uint8_t pk[static 64], const char *path, const struct tdx_iface *tdx) {
+	uint8_t *p_quote_buf = NULL;
+	tdx_report_data_t report_data = {0};
+	memcpy(&report_data, pk, 64);
+
+	tdx_uuid_t selected_att_key_id = {0};
+	uint32_t quote_size = 0;
+	int err = tdx->get_quote(&report_data, NULL, 0, &selected_att_key_id, &p_quote_buf,
+	                         &quote_size, 0);
+	if (err != TDX_ATTEST_SUCCESS) {
+		trace("tdx_att_get_quote failed: %d\n", err);
+		goto cleanup;
+	}
+
+	err = write_hex_to_file(path, p_quote_buf, quote_size);
+	if (err) {
+		trace("write_hex_to_file failed: %d\n", err);
+		goto cleanup;
+	}
+
+cleanup:
+	if (p_quote_buf) {
+		tdx->free_quote(p_quote_buf);
+	}
+	return err;
+}
+
 int init(int argc, char *argv[]) {
 	int err = 0;
 	struct init_parameters parameters = {
@@ -276,10 +302,17 @@ int init(int argc, char *argv[]) {
 	};
 
 	uint8_t sk[32] = {0};
-	err = get_sk(sk, parameters.key_request_mask, parameters.vault_mrenclave, ROOT_PEM_PATH,
-	             QUOTE_PATH, &tdx_ops, mbedtls_entropy_func);
+	uint8_t pk[64] = {0};
+	err = get_keys(parameters.key_request_mask, parameters.vault_mrenclave, ROOT_PEM_PATH,
+	               &tdx_ops, mbedtls_entropy_func, sk, pk);
 	if (err) {
-		trace("get_sk failed: %d\n", err);
+		trace("get_keys failed: %d\n", err);
+		goto cleanup;
+	}
+
+	err = save_quote(pk, QUOTE_PATH, &tdx_ops);
+	if (err) {
+		trace("save_quote failed: %d\n", err);
 		goto cleanup;
 	}
 
@@ -312,7 +345,7 @@ int init(int argc, char *argv[]) {
 	update_device_nodes();
 
 	for (size_t i = 0; i < parameters.mkfs_specs_len; i++) {
-		err = mkfs(&(parameters.mkfs_specs[i]));
+		err = mkfs(&parameters.mkfs_specs[i]);
 		if (err) {
 			trace("mkfs %s failed: %d\n", parameters.mkfs_specs[i].dev, err);
 			goto cleanup;
