@@ -248,6 +248,48 @@ cleanup:
 	return err;
 }
 
+static int run_crun(const char *workload_path) {
+	int err = 0;
+	char arg0[] = "crun";
+	char arg1[] = "run";
+	char arg2[] = "--no-pivot";
+	char arg3[] = "--bundle";
+	char *arg4 = strdup(workload_path);
+	if (!arg4) {
+		err = -1;
+		goto cleanup;
+	}
+	char arg5[] = "--config";
+	char arg6[] = BUNDLE_CONFIG_PATH;
+	char arg7[] = "app";
+	char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, NULL};
+	char *envp[] = {NULL};
+
+	pid_t pid;
+	err = posix_spawn(&pid, "/usr/bin/crun", NULL, NULL, argv, envp);
+	if (err) {
+		trace("posix_spawn failed: %s\n", strerror(err));
+		goto cleanup;
+	}
+
+	trace("Waiting for crun to exit...\n");
+
+	int status;
+	pid_t waitpid_ret = waitpid(pid, &status, 0);
+	if (waitpid_ret < 0) {
+		err = -errno;
+		trace("waitpid failed: %s\n", strerror(errno));
+		goto cleanup;
+	}
+
+	trace("crun exited with status %d\n", status);
+cleanup:
+	if (arg4) {
+		free(arg4);
+	}
+	return err;
+}
+
 int init(int argc, char *argv[]) {
 	int err = 0;
 	struct init_parameters parameters = {
@@ -376,38 +418,11 @@ int init(int argc, char *argv[]) {
 	replace_in_file(BUNDLE_CONFIG_PATH, SECRET_KEY_TEMPLATE, key_env_var);
 	mbedtls_platform_zeroize(key_env_var, sizeof SECRET_KEY_TEMPLATE);
 
-	const char *exec_argv[] = {"crun",
-	                           "run",
-	                           "--no-pivot",
-	                           "--bundle",
-	                           parameters.workload_path,
-	                           "--config",
-	                           BUNDLE_CONFIG_PATH,
-	                           "app",
-	                           NULL};
-	const char *exec_envp[] = {NULL};
-
-	pid_t pid;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-qual"
-	err = posix_spawn(&pid, "/usr/bin/crun", NULL, NULL, (char *const *)exec_argv,
-	                  (char *const *)exec_envp);
-#pragma GCC diagnostic pop
+	err = run_crun(parameters.workload_path);
 	if (err) {
-		trace("posix_spawn failed: %s\n", strerror(err));
+		trace("run_crun failed: %d\n", err);
 		goto cleanup;
 	}
-
-	trace("Waiting for crun to exit...\n");
-
-	int status;
-	err = waitpid(pid, &status, 0);
-	if (err) {
-		trace("waitpid failed: %s\n", strerror(errno));
-		goto cleanup;
-	}
-
-	trace("crun exited with status %d\n", status);
 
 cleanup:
 	mbedtls_platform_zeroize(sk, 32);

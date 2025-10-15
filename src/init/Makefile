@@ -3,7 +3,7 @@
 CC ?= gcc
 CFLAGS ?=
 
-LOCAL_CFLAGS := -MMD -MP -O2 -std=c17 -Wall -Wextra -Werror -fanalyzer \
+LOCAL_CFLAGS := -MMD -MP -O2 -std=c17 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -fanalyzer \
   -Wshadow -Wdouble-promotion -Wformat=2 -Wformat-truncation -Wformat-overflow \
   -Wconversion -Wstrict-aliasing=3 -Wnull-dereference \
   -Wuninitialized -Wvla -Walloca -Wno-unused-parameter \

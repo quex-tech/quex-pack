@@ -5,6 +5,8 @@
 #include <endian.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <spawn.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -65,30 +67,60 @@ static int get_superblock(const char *dev_path, struct superblock *out_sb) {
 }
 
 static int mkfs_ext4(const char *dev, const char *options) {
-	pid_t pid = fork();
-	if (pid < 0) {
-		int err = errno;
-		trace("fork failed: %s\n", strerror(err));
-		return -err;
+	int err = 0;
+	char arg0[] = "mke2fs";
+	char arg1[] = "-t";
+	char arg2[] = "ext4";
+	char arg3[] = "-F";
+	char arg4[] = "-q";
+	char arg5[] = "-L";
+	char arg6[] = "quex";
+	char arg7[] = "-O";
+	char *arg8 = NULL;
+	char *arg9 = NULL;
+	arg8 = strdup(options);
+	if (!arg8) {
+		trace("strdup failed\n");
+		err = -1;
+		goto cleanup;
 	}
+	arg9 = strdup(dev);
+	if (!arg9) {
+		trace("strdup failed\n");
+		err = -1;
+		goto cleanup;
+	}
+	char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, NULL};
+	char *envp[] = {NULL};
 
-	if (pid == 0) {
-		execl("/usr/bin/mke2fs", "mke2fs", "-t", "ext4", "-F", "-q", "-L", "quex", "-O",
-		      options, dev, (char *)NULL);
-		trace("exec failed: %s\n", strerror(errno));
-		_exit(127);
+	pid_t pid;
+	int spawn_ret = posix_spawn(&pid, "/usr/bin/mke2fs", NULL, NULL, argv, envp);
+	if (spawn_ret != 0) {
+		trace("posix_spawn failed: %s\n", strerror(spawn_ret));
+		err = -spawn_ret;
+		goto cleanup;
 	}
 
 	int status;
-	if (waitpid(pid, &status, 0) < 0) {
-		int err = errno;
-		trace("waitpid failed: %s\n", strerror(err));
-		return -err;
+	pid_t waitpid_ret = waitpid(pid, &status, 0);
+	if (waitpid_ret < 0) {
+		int waitpid_errno = errno;
+		trace("waitpid failed: %s\n", strerror(waitpid_errno));
+		err = -waitpid_errno;
+		goto cleanup;
 	}
 
 	trace("mke2fs exit status: %d\n", status);
+	err = (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
+cleanup:
+	if (arg8) {
+		free(arg8);
+	}
+	if (arg9) {
+		free(arg9);
+	}
 
-	return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
+	return err;
 }
 
 int parse_mkfs_spec(char *input, struct mkfs_spec *out_spec) {

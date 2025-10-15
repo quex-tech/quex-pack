@@ -107,27 +107,8 @@ int get_device_status(const char *name, struct dm_target *out_target) {
 	char *ttype = NULL;
 	char *params = NULL;
 	dm_get_next_target(dmt, NULL, &out_target->start, &out_target->size, &ttype, &params);
-
-	if (ttype) {
-		size_t len = strlen(ttype) + 1;
-		out_target->ttype = malloc(len);
-		if (out_target->ttype) {
-			memcpy(out_target->ttype, ttype, len);
-		} else {
-			trace("malloc failed for ttype\n");
-		}
-	}
-
-	if (params) {
-		size_t len = strlen(params) + 1;
-		out_target->params = malloc(len);
-		if (out_target->params) {
-			memcpy(out_target->params, params, len);
-		} else {
-			trace("malloc failed for params\n");
-		}
-	}
-
+	out_target->ttype = ttype ? strdup(ttype) : NULL;
+	out_target->params = params ? strdup(params) : NULL;
 cleanup:
 	if (dmt) {
 		dm_task_destroy(dmt);

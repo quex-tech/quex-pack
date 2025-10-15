@@ -4,6 +4,7 @@
 #include "tdx.h"
 #include "test.h"
 #include <arpa/inet.h>
+#include <errno.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
@@ -12,6 +13,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #define TEST_PORT 24516
@@ -76,7 +78,10 @@ static tdx_attest_error_t mock_get_report(const tdx_report_data_t *p_tdx_report_
 	(void)p_tdx_report_data;
 	size_t size = 0;
 	uint8_t *report = NULL;
-	read_bin_file("./test_data/report.dat", &report, &size);
+	int err = read_bin_file("./test_data/report.dat", &report, &size);
+	if (err) {
+		return TDX_ATTEST_ERROR_UNEXPECTED;
+	}
 	memcpy(p_tdx_report, report, size);
 	return TDX_ATTEST_SUCCESS;
 }
@@ -85,6 +90,10 @@ struct get_keys_thread_args {
 	uint8_t sk_out[32];
 	uint8_t pk_out[64];
 	int ret_out;
+
+	pthread_mutex_t mtx;
+	pthread_cond_t cv;
+	int done;
 };
 
 static int no_entropy(void *data, uint8_t *output, size_t len) {
@@ -103,6 +112,12 @@ static void *get_keys_thread_main(void *arg) {
 	a->ret_out = get_keys(
 	    "04030000c70000", "231c8240fb43d8ee81a813a3a3fb05e3b9f1ae9064fe4d8629cf691a58d74112",
 	    "./test_data/root.pem", &mock_tdx_ops, no_entropy, a->sk_out, a->pk_out);
+
+	pthread_mutex_lock(&a->mtx);
+	a->done = 1;
+	pthread_cond_signal(&a->cv);
+	pthread_mutex_unlock(&a->mtx);
+
 	return NULL;
 }
 
@@ -123,8 +138,17 @@ static int connect_sock(void) {
 	return fd;
 }
 
+static void sleep_ms(long ms) {
+	struct timespec ts;
+	ts.tv_sec = ms / 1000;
+	ts.tv_nsec = (ms % 1000) * 1000000L;
+	while (nanosleep(&ts, &ts) == -1 && errno == EINTR) {
+		// retry
+	}
+}
+
 static void test_get_keys(void) {
-	int fd = 0;
+	int fd = -1;
 
 	uint8_t *key_msg_blob = NULL;
 	size_t key_msg_len = 0;
@@ -140,48 +164,60 @@ static void test_get_keys(void) {
 		goto cleanup;
 	}
 
-	struct get_keys_thread_args args = {
-	    .sk_out = {0},
-	    .ret_out = -1,
-	};
+	struct get_keys_thread_args args = {.sk_out = {0}, .pk_out = {0}, .ret_out = -1, .done = 0};
+	must(pthread_mutex_init(&args.mtx, NULL) == 0, "mutex init must succeed");
+	must(pthread_cond_init(&args.cv, NULL) == 0, "cond init must succeed");
 
 	pthread_t th;
 	int perr = pthread_create(&th, NULL, get_keys_thread_main, &args);
 	must(perr == 0, "pthread_create must succeed");
 	if (perr) {
-		goto cleanup;
+		goto cleanup_after_sync;
 	}
 
-	usleep(150 * 1000);
+	sleep_ms(150);
 
 	fd = connect_sock();
-	must(fd > 0, "connect_sock must succeed");
-	if (fd <= 0) {
-		goto cleanup;
+	must(fd >= 0, "connect_sock must succeed");
+	if (fd < 0) {
+		goto join_and_cleanup;
 	}
 
 	send(fd, key_msg_blob, key_msg_len, 0);
 	send(fd, quote_blob, quote_len, 0);
 
 	struct timespec ts;
-
-	if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
-		must(0, "clock_gettime must succeed");
-		goto cleanup;
-	}
-
+	must(clock_gettime(CLOCK_REALTIME, &ts) == 0, "clock_gettime must succeed");
 	ts.tv_sec += 5;
 
-	if (pthread_timedjoin_np(th, NULL, &ts) != 0) {
-		must(0, "pthread_timedjoin_np must succeed");
-		goto cleanup;
+	pthread_mutex_lock(&args.mtx);
+	while (!args.done) {
+		int rc = pthread_cond_timedwait(&args.cv, &args.mtx, &ts);
+		if (rc == ETIMEDOUT) {
+			pthread_mutex_unlock(&args.mtx);
+			must(0, "worker thread must finish within timeout");
+			goto join_and_cleanup;
+		} else if (rc != 0) {
+			pthread_mutex_unlock(&args.mtx);
+			must(0, "pthread_cond_timedwait must succeed");
+			goto join_and_cleanup;
+		}
 	}
+	pthread_mutex_unlock(&args.mtx);
+
+join_and_cleanup:
+	pthread_join(th, NULL);
 
 	must(args.ret_out == 0, "get_keys must return success");
+
+cleanup_after_sync:
+	pthread_cond_destroy(&args.cv);
+	pthread_mutex_destroy(&args.mtx);
+
 cleanup:
 	free(key_msg_blob);
 	free(quote_blob);
-	if (fd > 0) {
+	if (fd >= 0) {
 		close(fd);
 	}
 }

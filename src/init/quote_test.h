@@ -2,6 +2,7 @@
 // Copyright 2025 Quex Technologies
 #include "quote.h"
 #include "test.h"
+#include "utils.h"
 #include <sgx_quote_3.h>
 #include <stdlib.h>
 

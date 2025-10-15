@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
-#define _GNU_SOURCE
 #include "test.h"
 #include "der_test.h"
 #include "ec_test.h"

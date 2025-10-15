@@ -6,8 +6,13 @@
 #include <string.h>
 #include <sys/mount.h>
 
-static unsigned long parse_mount_flags(char *options) {
+static unsigned long parse_mount_flags(const char *options_str) {
 	unsigned long flags = 0;
+
+	char *options = strdup(options_str);
+	if (!options) {
+		return 0;
+	}
 
 	const char *token = strtok(options, ",");
 	while (token) {
@@ -41,6 +46,7 @@ static unsigned long parse_mount_flags(char *options) {
 		token = strtok(NULL, ",");
 	}
 
+	free(options);
 	return flags;
 }
 
@@ -52,7 +58,7 @@ int parse_mount_spec(char *input, struct mount_spec *out_spec) {
 	char *source = strtok(input, ":");
 	char *target = strtok(NULL, ":");
 	char *fstype = strtok(NULL, ":");
-	char *options = strtok(NULL, ":");
+	const char *options = strtok(NULL, ":");
 
 	if (!source || !target || !fstype) {
 		trace("Invalid mount format: %s\n", input);
