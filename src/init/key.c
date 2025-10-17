@@ -187,24 +187,28 @@ static int decrypt_sk(struct ecc_context *ctx, const mbedtls_mpi *ephemeral_sk,
 static int recv_response(int client, struct td_response_msg *out_msg, sgx_quote3_t **out_quote) {
 	ssize_t received = recv(client, out_msg, sizeof *out_msg, MSG_WAITALL);
 	if (received != sizeof *out_msg) {
+#ifdef ENABLE_TRACE
 		if (received < 0) {
 			trace("Could not recv td_response_msg: %s\n", strerror(errno));
 		} else {
 			trace("Could not recv td_response_msg: expected %zu, got %zd\n",
 			      sizeof *out_msg, received);
 		}
+#endif
 		return -1;
 	}
 
 	sgx_quote3_t quote_header = {0};
 	received = recv(client, &quote_header, sizeof quote_header, MSG_WAITALL);
 	if (received != sizeof quote_header) {
+#ifdef ENABLE_TRACE
 		if (received < 0) {
 			trace("Could not recv sgx_quote3_t header: %s\n", strerror(errno));
 		} else {
 			trace("Could not recv sgx_quote3_t header: expected %zu, got %zd\n",
 			      sizeof quote_header, received);
 		}
+#endif
 		return -1;
 	}
 
@@ -228,12 +232,14 @@ static int recv_response(int client, struct td_response_msg *out_msg, sgx_quote3
 	received = recv(client, (uint8_t *)quote + sizeof quote_header,
 	                quote_header.signature_data_len, MSG_WAITALL);
 	if (received != quote_header.signature_data_len) {
+#ifdef ENABLE_TRACE
 		if (received < 0) {
 			trace("Could not recv quote signature: %s\n", strerror(errno));
 		} else {
 			trace("Could not recv quote signature: expected %u, got %zd\n",
 			      quote_header.signature_data_len, received);
 		}
+#endif
 		free(quote);
 		return -1;
 	}
@@ -321,11 +327,14 @@ int get_keys(const char *key_request_mask_hex, const char *vault_mrenclave_hex,
 			goto cleanup_iteration;
 		}
 
-		iter_err = tdx->get_report(&report_data, (tdx_report_t *)&key_request.tdreport);
+		tdx_report_t report = {0};
+		iter_err = tdx->get_report(&report_data, &report);
 		if (iter_err != TDX_ATTEST_SUCCESS) {
 			trace("tdx_att_get_report failed: %d\n", iter_err);
 			goto cleanup_iteration;
 		}
+
+		memcpy(&key_request.tdreport, &report, sizeof report);
 
 		trace("Sending key request...\n");
 		send(client, &key_request, sizeof key_request, MSG_NOSIGNAL);

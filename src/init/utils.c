@@ -26,6 +26,7 @@ int init_socket(uint16_t port) {
 	}
 
 	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof opt) < 0) {
+		close(sock);
 		return -1;
 	}
 

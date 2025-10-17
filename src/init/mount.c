@@ -14,7 +14,8 @@ static unsigned long parse_mount_flags(const char *options_str) {
 		return 0;
 	}
 
-	const char *token = strtok(options, ",");
+	char *saveptr;
+	const char *token = strtok_r(options, ",", &saveptr);
 	while (token) {
 		if (strcmp(token, "ro") == 0) {
 			flags |= MS_RDONLY;
@@ -43,7 +44,7 @@ static unsigned long parse_mount_flags(const char *options_str) {
 		} else if (strcmp(token, "lazytime") == 0) {
 			flags |= MS_LAZYTIME;
 		}
-		token = strtok(NULL, ",");
+		token = strtok_r(NULL, ",", &saveptr);
 	}
 
 	free(options);
@@ -55,10 +56,11 @@ int parse_mount_spec(char *input, struct mount_spec *out_spec) {
 		return -1;
 	}
 
-	char *source = strtok(input, ":");
-	char *target = strtok(NULL, ":");
-	char *fstype = strtok(NULL, ":");
-	const char *options = strtok(NULL, ":");
+	char *saveptr;
+	char *source = strtok_r(input, ":", &saveptr);
+	char *target = strtok_r(NULL, ":", &saveptr);
+	char *fstype = strtok_r(NULL, ":", &saveptr);
+	const char *options = strtok_r(NULL, ":", &saveptr);
 
 	if (!source || !target || !fstype) {
 		trace("Invalid mount format: %s\n", input);

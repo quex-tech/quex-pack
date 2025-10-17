@@ -531,8 +531,9 @@ int parse_integrity_spec(char *input, struct integrity_spec *out_spec) {
 		return -1;
 	}
 
-	char *dev = strtok(input, ":");
-	char *name = strtok(NULL, ":");
+	char *saveptr;
+	char *dev = strtok_r(input, ":", &saveptr);
+	char *name = strtok_r(NULL, ":", &saveptr);
 
 	if (!dev || !name) {
 		trace("Invalid integrity format: %s\n", input);
@@ -573,8 +574,9 @@ int parse_crypt_spec(char *input, struct crypt_spec *out_spec) {
 		return -1;
 	}
 
-	char *dev = strtok(input, ":");
-	char *name = strtok(NULL, ":");
+	char *saveptr;
+	char *dev = strtok_r(input, ":", &saveptr);
+	char *name = strtok_r(NULL, ":", &saveptr);
 
 	if (!dev || !name) {
 		trace("Invalid crypt format: %s\n", input);

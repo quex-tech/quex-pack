@@ -128,9 +128,10 @@ int parse_mkfs_spec(char *input, struct mkfs_spec *out_spec) {
 		return -1;
 	}
 
-	char *dev = strtok(input, ":");
-	char *fstype = strtok(NULL, ":");
-	char *options = strtok(NULL, ":");
+	char *saveptr;
+	char *dev = strtok_r(input, ":", &saveptr);
+	char *fstype = strtok_r(NULL, ":", &saveptr);
+	char *options = strtok_r(NULL, ":", &saveptr);
 
 	if (!dev || !fstype) {
 		trace("Invalid mkfs format: %s\n", input);

@@ -33,7 +33,7 @@ static int read_bin_file(const char *path, uint8_t **out, size_t *out_len) {
 		return -1;
 	}
 	rewind(f);
-	uint8_t *buf = (uint8_t *)malloc((size_t)sz);
+	uint8_t *buf = malloc((size_t)sz);
 	if (!buf) {
 		fclose(f);
 		return -1;
@@ -63,7 +63,7 @@ static tdx_attest_error_t mock_get_quote(const tdx_report_data_t *p_tdx_report_d
 		memset(p_att_key_id, 0, sizeof *p_att_key_id);
 	}
 	*p_quote_size = 4;
-	*pp_quote = (uint8_t *)malloc(*p_quote_size);
+	*pp_quote = malloc(*p_quote_size);
 	memset(*pp_quote, 0xAB, *p_quote_size);
 	return TDX_ATTEST_SUCCESS;
 }

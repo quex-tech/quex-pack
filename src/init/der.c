@@ -8,32 +8,45 @@
 #include <stdint.h>
 #include <string.h>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wsign-conversion"
-
-// copied from vendor/src/mbedtls-3.6.3/library/ecdsa.c
+// based on ecdsa_signature_to_asn1 from vendor/src/mbedtls-3.6.3/library/ecdsa.c
 // Copyright The Mbed TLS Contributors
 // SPDX-License-Identifier: Apache-2.0
-static int ecdsa_signature_to_asn1(const mbedtls_mpi *r, const mbedtls_mpi *s, uint8_t *sig,
-                                   size_t sig_len, size_t *out_sig_len) {
-	int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+static int rs_to_der_inner(const mbedtls_mpi *r, const mbedtls_mpi *s, uint8_t *out_der,
+                           size_t max_der_len, size_t *out_der_len) {
 	uint8_t buf[MBEDTLS_ECDSA_MAX_LEN] = {0};
 	uint8_t *p = buf + sizeof buf;
 	size_t len = 0;
 
-	MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, s));
-	MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+	int ret = mbedtls_asn1_write_mpi(&p, buf, s);
+	if (ret < 0) {
+		return ret;
+	}
+	len += (size_t)ret;
 
-	MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&p, buf, len));
-	MBEDTLS_ASN1_CHK_ADD(
-	    len, mbedtls_asn1_write_tag(&p, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
+	ret = mbedtls_asn1_write_mpi(&p, buf, r);
+	if (ret < 0) {
+		return ret;
+	}
+	len += (size_t)ret;
 
-	if (len > sig_len) {
+	ret = mbedtls_asn1_write_len(&p, buf, len);
+	if (ret < 0) {
+		return ret;
+	}
+	len += (size_t)ret;
+
+	ret = mbedtls_asn1_write_tag(&p, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
+	if (ret < 0) {
+		return ret;
+	}
+	len += (size_t)ret;
+
+	if (len > max_der_len) {
 		return MBEDTLS_ERR_ECP_BUFFER_TOO_SMALL;
 	}
 
-	memcpy(sig, p, len);
-	*out_sig_len = len;
+	memcpy(out_der, p, len);
+	*out_der_len = len;
 
 	return 0;
 }
@@ -53,9 +66,9 @@ int rs_to_der(const uint8_t rs[static 64], uint8_t *out_der, size_t max_der_len,
 		ret = -1;
 	}
 
-	err = ecdsa_signature_to_asn1(&r, &s, out_der, max_der_len, out_der_len);
+	err = rs_to_der_inner(&r, &s, out_der, max_der_len, out_der_len);
 	if (err) {
-		trace("ecdsa_signature_to_asn1 failed: %d\n", err);
+		trace("rs_to_der_inner failed: %d\n", err);
 		ret = -1;
 	}
 
@@ -67,37 +80,64 @@ int rs_to_der(const uint8_t rs[static 64], uint8_t *out_der, size_t max_der_len,
 
 int pk_to_der(const uint8_t pk[static 64], uint8_t *out_der, size_t max_der_len,
               size_t *out_der_len) {
-	int ret = -1;
 	uint8_t *p = out_der + max_der_len;
 	size_t len = 0;
 	size_t len_alg = 0;
 	uint8_t point[65] = {0x04};
 	memcpy(point + 1, pk, 64);
 
-	MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_bitstring(&p, out_der, point, 65 * 8));
+	int ret = mbedtls_asn1_write_bitstring(&p, out_der, point, 65 * 8);
+	if (ret < 0) {
+		return ret;
+	}
+	len += (size_t)ret;
 
-	MBEDTLS_ASN1_CHK_ADD(
-	    len_alg, mbedtls_asn1_write_oid(&p, out_der, MBEDTLS_OID_EC_GRP_SECP256R1,
-	                                    MBEDTLS_OID_SIZE(MBEDTLS_OID_EC_GRP_SECP256R1)));
-	MBEDTLS_ASN1_CHK_ADD(
-	    len_alg, mbedtls_asn1_write_oid(&p, out_der, MBEDTLS_OID_EC_ALG_UNRESTRICTED,
-	                                    MBEDTLS_OID_SIZE(MBEDTLS_OID_EC_ALG_UNRESTRICTED)));
-	MBEDTLS_ASN1_CHK_ADD(len_alg, mbedtls_asn1_write_len(&p, out_der, len_alg));
-	MBEDTLS_ASN1_CHK_ADD(
-	    len_alg,
-	    mbedtls_asn1_write_tag(&p, out_der, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
+	ret = mbedtls_asn1_write_oid(&p, out_der, MBEDTLS_OID_EC_GRP_SECP256R1,
+	                             MBEDTLS_OID_SIZE(MBEDTLS_OID_EC_GRP_SECP256R1));
+	if (ret < 0) {
+		return ret;
+	}
+	len_alg += (size_t)ret;
+
+	ret = mbedtls_asn1_write_oid(&p, out_der, MBEDTLS_OID_EC_ALG_UNRESTRICTED,
+	                             MBEDTLS_OID_SIZE(MBEDTLS_OID_EC_ALG_UNRESTRICTED));
+	if (ret < 0) {
+		return ret;
+	}
+	len_alg += (size_t)ret;
+
+	ret = mbedtls_asn1_write_len(&p, out_der, len_alg);
+	if (ret < 0) {
+		return ret;
+	}
+	len_alg += (size_t)ret;
+
+	ret = mbedtls_asn1_write_tag(&p, out_der, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
+	if (ret < 0) {
+		return ret;
+	}
+	len_alg += (size_t)ret;
 
 	len += len_alg;
 
-	MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&p, out_der, len));
-	MBEDTLS_ASN1_CHK_ADD(
-	    len,
-	    mbedtls_asn1_write_tag(&p, out_der, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
+	ret = mbedtls_asn1_write_len(&p, out_der, len);
+	if (ret < 0) {
+		return ret;
+	}
+	len += (size_t)ret;
 
-	*out_der_len = len;
+	ret = mbedtls_asn1_write_tag(&p, out_der, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
+	if (ret < 0) {
+		return ret;
+	}
+	len += (size_t)ret;
+
+	if (len > max_der_len) {
+		return MBEDTLS_ERR_ECP_BUFFER_TOO_SMALL;
+	}
+
 	memmove(out_der, p, len);
+	*out_der_len = len;
 
 	return 0;
 }
-
-#pragma GCC diagnostic pop

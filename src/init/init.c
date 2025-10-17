@@ -79,7 +79,7 @@ static int parse_init_parameter(const char *arg, struct init_parameters *parsed)
 			return -1;
 		}
 		int err = parse_integrity_spec(
-		    (char *)value, &parsed->integrity_specs[parsed->integrity_specs_len++]);
+		    value, &parsed->integrity_specs[parsed->integrity_specs_len++]);
 		if (err) {
 			trace("parse_integrity_spec failed: %d\n", err);
 			return err;
@@ -92,8 +92,7 @@ static int parse_init_parameter(const char *arg, struct init_parameters *parsed)
 			trace("Too many disks\n");
 			return -1;
 		}
-		int err = parse_crypt_spec((char *)value,
-		                           &parsed->crypt_specs[parsed->crypt_specs_len++]);
+		int err = parse_crypt_spec(value, &parsed->crypt_specs[parsed->crypt_specs_len++]);
 		if (err) {
 			trace("parse_crypt_spec failed: %d\n", err);
 			return err;
@@ -106,8 +105,7 @@ static int parse_init_parameter(const char *arg, struct init_parameters *parsed)
 			trace("Too many disks\n");
 			return -1;
 		}
-		int err =
-		    parse_mkfs_spec((char *)value, &parsed->mkfs_specs[parsed->mkfs_specs_len++]);
+		int err = parse_mkfs_spec(value, &parsed->mkfs_specs[parsed->mkfs_specs_len++]);
 		if (err) {
 			trace("parse_mkfs_spec failed: %d\n", err);
 			return err;
@@ -120,8 +118,7 @@ static int parse_init_parameter(const char *arg, struct init_parameters *parsed)
 			trace("Too many disks\n");
 			return -1;
 		}
-		int err = parse_mount_spec((char *)value,
-		                           &parsed->mount_specs[parsed->mount_specs_len++]);
+		int err = parse_mount_spec(value, &parsed->mount_specs[parsed->mount_specs_len++]);
 		if (err) {
 			trace("parse_mount_spec failed: %d\n", err);
 			return err;
@@ -132,7 +129,7 @@ static int parse_init_parameter(const char *arg, struct init_parameters *parsed)
 	return 0;
 }
 
-static int handle_integrity(uint8_t *prk, size_t prk_len, const mbedtls_md_info_t *md,
+static int handle_integrity(const uint8_t *prk, size_t prk_len, const mbedtls_md_info_t *md,
                             struct integrity_spec spec) {
 	uint8_t integrity_sk[32] = {0};
 	char integrity_sk_info[512] = {0};
@@ -170,7 +167,7 @@ cleanup:
 	return err;
 }
 
-static int handle_crypt(uint8_t *prk, size_t prk_len, const mbedtls_md_info_t *md,
+static int handle_crypt(const uint8_t *prk, size_t prk_len, const mbedtls_md_info_t *md,
                         struct crypt_spec spec) {
 	int err = 0;
 	uint8_t crypt_sk[32] = {0};
