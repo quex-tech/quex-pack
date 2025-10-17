@@ -35,7 +35,7 @@ static void test_apply_full_mask(void) {
 }
 
 static void test_apply_partial_mask(void) {
-	sgx_report2_t report = {.report_mac_struct = {.report_type = {1},
+	sgx_report2_t report = {.report_mac_struct = {.report_type = {.type = 1},
 	                                              .reserved1 = {2},
 	                                              .cpu_svn = {.svn = {3, 4, 5, 6}},
 	                                              .tee_tcb_info_hash = {.m = {7}},
@@ -69,7 +69,7 @@ static void test_apply_partial_mask(void) {
 	                                   .tdinfo_base_mask = 0b0000010101010101,
 	                                   .tdinfo_extension_mask = 0b0};
 
-	sgx_report2_t expected_report = {.report_mac_struct = {.report_type = {1},
+	sgx_report2_t expected_report = {.report_mac_struct = {.report_type = {.type = 1},
 	                                                       .reserved1 = {0},
 	                                                       .cpu_svn = {.svn = {3, 4, 5, 6}},
 	                                                       .tee_tcb_info_hash = {.m = {0}},

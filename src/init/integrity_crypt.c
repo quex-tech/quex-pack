@@ -211,7 +211,7 @@ cleanup:
 	return err;
 }
 
-int test_read(const char *dev_path) {
+static int test_read(const char *dev_path) {
 	int fd = open(dev_path, O_RDONLY);
 	if (fd < 0) {
 		trace("Cannot open %s: %s\n", dev_path, strerror(errno));

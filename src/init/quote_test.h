@@ -94,7 +94,7 @@ static void test_is_quote_header_well_formed_wrong_signature_data_len(void) {
 	}
 }
 
-sgx_quote3_t *read_quote(const char *filename, size_t *size_out) {
+static sgx_quote3_t *read_quote(const char *filename, size_t *size_out) {
 	FILE *f = fopen(filename, "rb");
 	if (!f) {
 		perror("fopen");

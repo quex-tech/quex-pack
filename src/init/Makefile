@@ -1,18 +1,33 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025 Quex Technologies
 CC ?= gcc
-CFLAGS ?=
 
-LOCAL_CFLAGS := -MMD -MP -O2 -std=c17 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -fanalyzer \
+COMPILER_DEFS := $(shell echo "" | $(CC) -dM -E - 2>/dev/null)
+ifeq (,$(findstring __clang__,$(COMPILER_DEFS)))
+    ifneq (,$(findstring __GNUC__,$(COMPILER_DEFS)))
+        COMPILER := gcc
+    else
+        COMPILER := $(CC)
+    endif
+else
+    COMPILER := clang
+endif
+
+LOCAL_CFLAGS := -MMD -MP -O2 -std=c17 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror \
   -Wshadow -Wdouble-promotion -Wformat=2 -Wformat-truncation -Wformat-overflow \
-  -Wconversion -Wstrict-aliasing=3 -Wnull-dereference \
+  -Wconversion  -Wnull-dereference \
   -Wuninitialized -Wvla -Walloca -Wno-unused-parameter \
   -Wwrite-strings -Wstrict-prototypes -Wold-style-definition \
   -Wredundant-decls -Wnested-externs -Wmissing-include-dirs \
-  -fno-common -fstrict-overflow -fstack-protector-strong -Wcast-qual
+  -fno-common -fstrict-overflow -fstack-protector-strong -Wcast-qual \
+  -Wbad-function-cast -Wmissing-prototypes
 
-ifeq ($(CC),gcc)
-	LOCAL_CFLAGS += -Wjump-misses-init -Wlogical-op -Wduplicated-cond -Wduplicated-branches -Wrestrict
+ifeq ($(COMPILER),gcc)
+	LOCAL_CFLAGS += -fanalyzer -Wstrict-aliasing=3 -Wlogical-op -Wduplicated-cond -Wduplicated-branches -Wrestrict
+endif
+
+ifeq ($(COMPILER),clang)
+	LOCAL_CFLAGS += -Wstrict-aliasing=2 -Wnewline-eof
 endif
 
 MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
+#include "key.h"
 #include "ec.h"
 #include "quote.h"
 #include "report.h"
@@ -262,7 +263,7 @@ static int compare_masked(const sgx_report2_t *first, const sgx_report2_t *secon
 	return mbedtls_ct_memcmp(&first_masked, &second_masked, sizeof first_masked);
 }
 
-int get_keys(const char *key_request_mask_hex, const char *vault_mrenclave_hex,
+int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
              const char *root_pem_path, const struct tdx_iface *tdx,
              int (*f_entropy)(void *, uint8_t *, size_t), uint8_t out_sk[static 32],
              uint8_t out_pk[static 64]) {
@@ -283,9 +284,9 @@ int get_keys(const char *key_request_mask_hex, const char *vault_mrenclave_hex,
 	}
 
 	sgx_measurement_t mr_enclave;
-	err = read_hex(vault_mrenclave_hex, (uint8_t *)&mr_enclave, sizeof mr_enclave);
+	err = read_hex(vault_mr_enclave_hex, (uint8_t *)&mr_enclave, sizeof mr_enclave);
 	if (err) {
-		trace("Could not read vault mr_enclave %s: %d\n", vault_mrenclave_hex, err);
+		trace("Could not read vault mr_enclave %s: %d\n", vault_mr_enclave_hex, err);
 		goto cleanup;
 	}
 
@@ -328,9 +329,9 @@ int get_keys(const char *key_request_mask_hex, const char *vault_mrenclave_hex,
 		}
 
 		tdx_report_t report = {0};
-		iter_err = tdx->get_report(&report_data, &report);
-		if (iter_err != TDX_ATTEST_SUCCESS) {
-			trace("tdx_att_get_report failed: %d\n", iter_err);
+		tdx_attest_error_t attest_err = tdx->get_report(&report_data, &report);
+		if (attest_err != TDX_ATTEST_SUCCESS) {
+			trace("tdx_att_get_report failed: %d\n", attest_err);
 			goto cleanup_iteration;
 		}
 

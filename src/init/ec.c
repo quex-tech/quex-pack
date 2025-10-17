@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
+#include "ec.h"
 #include "utils.h"
 #include <mbedtls/ecp.h>
 #include <string.h>
 
 int read_raw_pk(const mbedtls_ecp_group *grp, const uint8_t raw[static 64],
-                mbedtls_ecp_point *out_) {
+                mbedtls_ecp_point *out_pk) {
 	uint8_t uncompressed[65] = {0x04};
 	memcpy(uncompressed + 1, raw, 64);
-	return mbedtls_ecp_point_read_binary(grp, out_, uncompressed, sizeof uncompressed);
+	return mbedtls_ecp_point_read_binary(grp, out_pk, uncompressed, sizeof uncompressed);
 }
 
 int write_raw_pk(const mbedtls_ecp_group *grp, const mbedtls_ecp_point *pk,

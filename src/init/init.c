@@ -225,10 +225,12 @@ static int save_quote(const uint8_t pk[static 64], const char *path, const struc
 
 	tdx_uuid_t selected_att_key_id = {0};
 	uint32_t quote_size = 0;
-	int err = tdx->get_quote(&report_data, NULL, 0, &selected_att_key_id, &p_quote_buf,
-	                         &quote_size, 0);
-	if (err != TDX_ATTEST_SUCCESS) {
+	int err = 0;
+	tdx_attest_error_t attest_err = tdx->get_quote(&report_data, NULL, 0, &selected_att_key_id,
+	                                               &p_quote_buf, &quote_size, 0);
+	if (attest_err != TDX_ATTEST_SUCCESS) {
 		trace("tdx_att_get_quote failed: %d\n", err);
+		err = -1;
 		goto cleanup;
 	}
 
@@ -287,7 +289,7 @@ cleanup:
 	return err;
 }
 
-int init(int argc, char *argv[]) {
+static int init(int argc, char *argv[]) {
 	int err = 0;
 	struct init_parameters parameters = {
 	    .key_request_mask = "", .vault_mrenclave = "", .workload_path = "/opt/bundle"};
