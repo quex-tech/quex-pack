@@ -49,7 +49,7 @@ LIBPATHS := $(VENDOR_OUT_DIR)/usr/lib:$(VENDOR_OUT_DIR)/usr/lib/x86_64-linux-gnu
 
 COMPILE.c = $(CC) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) -c
 
-.PHONY: all clean distclean test fuzz
+.PHONY: all clean distclean test fuzz lint format
 
 all: $(OUT)
 
@@ -81,6 +81,14 @@ test: $(TEST_OUT)
 
 quote_fuzz: $(QUOTE_FUZZ_OUT)
 	@LD_LIBRARY_PATH=$(LIBPATHS) ./$(QUOTE_FUZZ_OUT) -max_len=6000 ./quote_fuzz_seeds/
+
+lint:
+	@clang-format --dry-run -Werror *.c *.h
+	@clang-tidy $(foreach inc,$(INCLUDES),--extra-arg=$(inc)) --warnings-as-errors=* *.c *.h
+	@cppcheck --enable=all --library=posix --inconclusive --suppress=missingIncludeSystem -q --inline-suppr --error-exitcode=2 *.c *.h
+
+format:
+	@clang-format -i *.c *.h
 
 %.o: %.c
 	@echo "CC $<"
