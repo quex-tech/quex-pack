@@ -34,14 +34,22 @@ TEST_SRCS := test.c
 TEST_OBJS := $(TEST_SRCS:.c=.o)
 TEST_DEPS := $(TEST_SRCS:.c=.d)
 TEST_OUT := test.bin
+TEST_LIBS := -lpthread
+
+QUOTE_FUZZ_SRCS := quote_fuzz.c
+QUOTE_FUZZ_OUT := quote_fuzz.bin
+
+FUZZ_CC := clang
+FUZZ_CFLAGS := -O1 -g -fsanitize=address,undefined,fuzzer
 
 INCLUDES := -I$(VENDOR_OUT_DIR)/usr/include -I$(VENDOR_OUT_DIR)/usr/lib/sgx-sdk/include
 LIBDIRS := -L$(VENDOR_OUT_DIR)/usr/lib -L$(VENDOR_OUT_DIR)/usr/lib/x86_64-linux-gnu
 LIBS := -lmbedx509 -lmbedcrypto -ltdx_attest -ldevmapper -lm
+LIBPATHS := $(VENDOR_OUT_DIR)/usr/lib:$(VENDOR_OUT_DIR)/usr/lib/x86_64-linux-gnu
 
 COMPILE.c = $(CC) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) -c
 
-.PHONY: all clean distclean test
+.PHONY: all clean distclean test fuzz
 
 all: $(OUT)
 
@@ -59,14 +67,20 @@ $(OUT): $(OBJS)
 	@$(CC) $(OBJS) $(MODULE_OBJS) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) $(LIBDIRS) $(LIBS) -o $@
 
 $(TEST_OUT): $(TEST_OBJS)
-	@$(CC) $(TEST_OBJS) $(MODULE_OBJS) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) $(LIBDIRS) $(LIBS) -lpthread -o $@
+	@$(CC) $(TEST_OBJS) $(MODULE_OBJS) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) $(LIBDIRS) $(LIBS) $(TEST_LIBS) -o $@
+
+$(QUOTE_FUZZ_OUT): $(QUOTE_FUZZ_SRCS) $(MODULE_OBJS)
+	@$(FUZZ_CC) $(QUOTE_FUZZ_SRCS) $(MODULE_OBJS) -O1 -g -fsanitize=address,undefined,fuzzer $(INCLUDES) $(LIBDIRS) $(LIBS) -o $@
 
 $(OBJS): $(MODULE_OBJS)
 $(TEST_OBJS): $(MODULE_OBJS)
 $(MODULE_OBJS): mbedtls intel lvm
 
 test: $(TEST_OUT)
-	@LD_LIBRARY_PATH=$(VENDOR_OUT_DIR)/usr/lib:$(VENDOR_OUT_DIR)/usr/lib/x86_64-linux-gnu ./$(TEST_OUT)
+	@LD_LIBRARY_PATH=$(LIBPATHS) ./$(TEST_OUT)
+
+quote_fuzz: $(QUOTE_FUZZ_OUT)
+	@LD_LIBRARY_PATH=$(LIBPATHS) ./$(QUOTE_FUZZ_OUT) -max_len=6000 ./quote_fuzz_seeds/
 
 %.o: %.c
 	@echo "CC $<"

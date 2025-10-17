@@ -1,3 +1,5 @@
 init
 *.o
 *.d
+quote_fuzz_seeds/*
+!quote_fuzz_seeds/quote.dat

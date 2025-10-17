@@ -88,6 +88,11 @@ struct parsed_quote {
 };
 
 static int parse_quote(const sgx_quote3_t *quote, struct parsed_quote *out_quote) {
+	if (!is_quote_header_well_formed(quote)) {
+		trace("Quote header is ill-formed\n");
+		return -1;
+	}
+
 	out_quote->quote = (const uint8_t *)quote;
 
 	const uint8_t *p = (const uint8_t *)quote->signature_data;
