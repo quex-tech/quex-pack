@@ -283,9 +283,7 @@ static int run_crun(const char *workload_path) {
 
 	trace("crun exited with status %d\n", status);
 cleanup:
-	if (arg4) {
-		free(arg4);
-	}
+	free(arg4);
 	return err;
 }
 

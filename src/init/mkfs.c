@@ -113,12 +113,8 @@ static int mkfs_ext4(const char *dev, const char *options) {
 	trace("mke2fs exit status: %d\n", status);
 	err = (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
 cleanup:
-	if (arg8) {
-		free(arg8);
-	}
-	if (arg9) {
-		free(arg9);
-	}
+	free(arg8);
+	free(arg9);
 
 	return err;
 }

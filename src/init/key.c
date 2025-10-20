@@ -396,9 +396,7 @@ int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
 
 	cleanup_iteration:
 		mbedtls_mpi_free(&ephemeral_sk);
-		if (quote) {
-			free(quote);
-		}
+		free(quote);
 		close(client);
 	}
 

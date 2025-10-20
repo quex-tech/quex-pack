@@ -202,12 +202,8 @@ static int get_provided_sectors(const char *name, uint64_t *result) {
 
 	*result = prov;
 cleanup:
-	if (target.ttype) {
-		free(target.ttype);
-	}
-	if (target.params) {
-		free(target.params);
-	}
+	free(target.ttype);
+	free(target.params);
 	return err;
 }
 

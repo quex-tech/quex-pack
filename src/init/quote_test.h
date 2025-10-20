@@ -177,9 +177,7 @@ static void test_verify_quote_valid(void) {
 	must(verify_quote(quote, &root_crt) == 0, "Valid quote must pass verification");
 
 cleanup:
-	if (quote) {
-		free(quote);
-	}
+	free(quote);
 	mbedtls_x509_crt_free(&root_crt);
 }
 
