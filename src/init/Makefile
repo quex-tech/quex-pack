@@ -101,7 +101,7 @@ quote_fuzz: $(QUOTE_FUZZ_OUT)
 lint:
 	@clang-format --dry-run -Werror *.c *.h
 	@clang-tidy $(foreach inc,$(INCLUDES),--extra-arg=$(inc)) --warnings-as-errors=* *.c *.h
-	@cppcheck --enable=all --library=posix --inconclusive --suppress=missingIncludeSystem -q --inline-suppr --error-exitcode=2 *.c *.h
+	@cppcheck --enable=all --library=posix --inconclusive --suppress=missingIncludeSystem -q --inline-suppr --error-exitcode=2 $(SRCS) $(TEST_SRCS) $(MODULE_SRCS)
 
 format:
 	@clang-format -i *.c *.h

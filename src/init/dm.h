@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
-#ifndef _DM_H_
-#define _DM_H_
+#ifndef DM_H
+#define DM_H
 
 #include <inttypes.h>
 

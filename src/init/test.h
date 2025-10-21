@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
-#ifndef _TEST_H_
-#define _TEST_H_
+#ifndef TEST_H
+#define TEST_H
 
 #include <stdint.h>
 #include <stdio.h>

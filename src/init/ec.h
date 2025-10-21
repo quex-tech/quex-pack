@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
-#ifndef _EC_H_
-#define _EC_H_
+#ifndef EC_H
+#define EC_H
 
 #include <mbedtls/ecp.h>
 

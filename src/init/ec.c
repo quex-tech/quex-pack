@@ -7,14 +7,14 @@
 
 int read_raw_pk(const mbedtls_ecp_group *grp, const uint8_t raw[static 64],
                 mbedtls_ecp_point *out_pk) {
-	uint8_t uncompressed[65] = {0x04};
+	uint8_t uncompressed[65] = {[0] = 0x04};
 	memcpy(uncompressed + 1, raw, 64);
 	return mbedtls_ecp_point_read_binary(grp, out_pk, uncompressed, sizeof uncompressed);
 }
 
 int write_raw_pk(const mbedtls_ecp_group *grp, const mbedtls_ecp_point *pk,
                  uint8_t out[static 64]) {
-	uint8_t uncompressed[65] = {0x04};
+	uint8_t uncompressed[65] = {[0] = 0x04};
 	int err = mbedtls_ecp_point_write_binary(grp, pk, MBEDTLS_ECP_PF_UNCOMPRESSED, &(size_t){0},
 	                                         uncompressed, sizeof uncompressed);
 	if (err) {

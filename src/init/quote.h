@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
-#ifndef _QUOTE_H_
-#define _QUOTE_H_
+#ifndef QUOTE_H
+#define QUOTE_H
 
 #include <mbedtls/x509_crt.h>
 #include <sgx_quote_3.h>

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
-#ifndef _DER_H_
-#define _DER_H_
+#ifndef DER_H
+#define DER_H
 
 #include <stddef.h>
 #include <stdint.h>

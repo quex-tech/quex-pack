@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
-#ifndef _MKFS_H_
-#define _MKFS_H_
+#ifndef MKFS_H
+#define MKFS_H
 
 struct mkfs_spec {
 	const char *dev;

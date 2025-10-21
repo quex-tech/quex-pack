@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
-#ifndef _MOUNT_H_
-#define _MOUNT_H_
+#ifndef MOUNT_H
+#define MOUNT_H
 
 struct mount_spec {
 	const char *source;

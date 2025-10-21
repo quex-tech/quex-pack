@@ -84,7 +84,7 @@ int pk_to_der(const uint8_t pk[static 64], uint8_t *out_der, size_t max_der_len,
 	uint8_t *p = out_der + max_der_len;
 	size_t len = 0;
 	size_t len_alg = 0;
-	uint8_t point[65] = {0x04};
+	uint8_t point[65] = {[0] = 0x04};
 	memcpy(point + 1, pk, 64);
 
 	int ret = mbedtls_asn1_write_bitstring(&p, out_der, point, 65 * 8);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
-#ifndef _REPORT_H_
-#define _REPORT_H_
+#ifndef REPORT_H
+#define REPORT_H
 
 #include "types.h"
 #include <sgx_report2.h>

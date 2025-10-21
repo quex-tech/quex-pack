@@ -1,5 +1,5 @@
-#ifndef ___wrap_tdx_att_TDX_H
-#define _MOCK_TDX_H
+#ifndef MOCK_TDX_H
+#define MOCK_TDX_H
 
 #include "test.h"
 #include <stdlib.h>
