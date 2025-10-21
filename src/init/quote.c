@@ -139,7 +139,7 @@ static int parse_quote(const sgx_quote3_t *quote, struct parsed_quote *out_quote
 	return 0;
 }
 
-static int verify_sig(mbedtls_pk_context *pk, const uint8_t sig[static 64], const uint8_t *msg,
+static int verify_sig(mbedtls_pk_context *pk, const uint8_t sig[64], const uint8_t *msg,
                       size_t msg_len) {
 	trace("Verifying a signature...\n");
 	uint8_t sig_der[MBEDTLS_ECDSA_MAX_LEN] = {0};
@@ -240,8 +240,8 @@ static int verify_attest_key_hash(const struct parsed_quote *quote) {
 	uint8_t expected_report_data[SGX_REPORT_DATA_SIZE] = {0};
 	uint8_t *hash_preimage = NULL;
 
-	hash_preimage =
-	    malloc(sizeof quote->sig_data_header.attest_pub_key + quote->auth_data_header.size);
+	hash_preimage = (uint8_t *)malloc(sizeof quote->sig_data_header.attest_pub_key +
+	                                  quote->auth_data_header.size);
 	if (!hash_preimage) {
 		trace("could not malloc for hash_preimage\n");
 		return -1;

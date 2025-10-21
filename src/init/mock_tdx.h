@@ -27,7 +27,7 @@ tdx_attest_error_t __wrap_tdx_att_get_quote(const tdx_report_data_t *p_tdx_repor
 		memset(p_att_key_id, 0, sizeof *p_att_key_id);
 	}
 	*p_quote_size = 4;
-	*pp_quote = malloc(*p_quote_size);
+	*pp_quote = (uint8_t *)malloc(*p_quote_size);
 	memset(*pp_quote, 0xAB, *p_quote_size);
 	return TDX_ATTEST_SUCCESS;
 }

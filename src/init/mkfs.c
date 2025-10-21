@@ -18,8 +18,7 @@ struct superblock {
 	uint16_t magic;
 };
 
-static void parse_superblock(const uint8_t buf[const EXT4_SUPERBLOCK_SIZE],
-                             struct superblock *out_sb) {
+static void parse_superblock(const uint8_t buf[EXT4_SUPERBLOCK_SIZE], struct superblock *out_sb) {
 	out_sb->magic = read_le16(buf + 0x38);
 }
 
@@ -68,50 +67,52 @@ static int get_superblock(const char *dev_path, struct superblock *out_sb) {
 
 static int mkfs_ext4(const char *dev, const char *options) {
 	int err = 0;
-	char arg0[] = "mke2fs";
-	char arg1[] = "-t";
-	char arg2[] = "ext4";
-	char arg3[] = "-F";
-	char arg4[] = "-q";
-	char arg5[] = "-L";
-	char arg6[] = "quex";
-	char arg7[] = "-O";
 	char *arg8 = NULL;
 	char *arg9 = NULL;
-	arg8 = strdup(options);
-	if (!arg8) {
-		trace("strdup failed\n");
-		err = -1;
-		goto cleanup;
-	}
-	arg9 = strdup(dev);
-	if (!arg9) {
-		trace("strdup failed\n");
-		err = -1;
-		goto cleanup;
-	}
-	char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, NULL};
-	char *envp[] = {NULL};
+	{
+		char arg0[] = "mke2fs";
+		char arg1[] = "-t";
+		char arg2[] = "ext4";
+		char arg3[] = "-F";
+		char arg4[] = "-q";
+		char arg5[] = "-L";
+		char arg6[] = "quex";
+		char arg7[] = "-O";
+		arg8 = strdup(options);
+		if (!arg8) {
+			trace("strdup failed\n");
+			err = -1;
+			goto cleanup;
+		}
+		arg9 = strdup(dev);
+		if (!arg9) {
+			trace("strdup failed\n");
+			err = -1;
+			goto cleanup;
+		}
+		char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, NULL};
+		char *envp[] = {NULL};
 
-	pid_t pid;
-	int spawn_ret = posix_spawn(&pid, "/usr/bin/mke2fs", NULL, NULL, argv, envp);
-	if (spawn_ret != 0) {
-		trace("posix_spawn failed: %s\n", strerror(spawn_ret));
-		err = -spawn_ret;
-		goto cleanup;
-	}
+		pid_t pid;
+		int spawn_ret = posix_spawn(&pid, "/usr/bin/mke2fs", NULL, NULL, argv, envp);
+		if (spawn_ret != 0) {
+			trace("posix_spawn failed: %s\n", strerror(spawn_ret));
+			err = -spawn_ret;
+			goto cleanup;
+		}
 
-	int status;
-	pid_t waitpid_ret = waitpid(pid, &status, 0);
-	if (waitpid_ret < 0) {
-		int waitpid_errno = errno;
-		trace("waitpid failed: %s\n", strerror(waitpid_errno));
-		err = -waitpid_errno;
-		goto cleanup;
-	}
+		int status;
+		pid_t waitpid_ret = waitpid(pid, &status, 0);
+		if (waitpid_ret < 0) {
+			int waitpid_errno = errno;
+			trace("waitpid failed: %s\n", strerror(waitpid_errno));
+			err = -waitpid_errno;
+			goto cleanup;
+		}
 
-	trace("mke2fs exit status: %d\n", status);
-	err = (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
+		trace("mke2fs exit status: %d\n", status);
+		err = (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
+	}
 cleanup:
 	free(arg8);
 	free(arg9);

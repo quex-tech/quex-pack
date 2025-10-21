@@ -542,8 +542,8 @@ int parse_integrity_spec(char *input, struct integrity_spec *out_spec) {
 	return 0;
 }
 
-int setup_integrity(const struct integrity_spec *spec, const uint8_t mac_key[static 32],
-                    const uint8_t journal_crypt_key[static 32]) {
+int setup_integrity(const struct integrity_spec *spec, const uint8_t mac_key[32],
+                    const uint8_t journal_crypt_key[32]) {
 	struct superblock sb = {0};
 	int err = get_superblock(spec->dev, &sb);
 	if (err && err != NO_SUPERBLOCK) {
@@ -585,9 +585,8 @@ int parse_crypt_spec(char *input, struct crypt_spec *out_spec) {
 	return 0;
 }
 
-int setup_crypt(const struct crypt_spec *spec, const uint8_t key[static 32],
-                const uint8_t journal_crypt_key[static 32],
-                const uint8_t journal_mac_key[static 32]) {
+int setup_crypt(const struct crypt_spec *spec, const uint8_t key[32],
+                const uint8_t journal_crypt_key[32], const uint8_t journal_mac_key[32]) {
 	struct superblock sb = {0};
 	int err = get_superblock(spec->dev, &sb);
 	if (err && err != NO_SUPERBLOCK) {

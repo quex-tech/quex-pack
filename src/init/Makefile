@@ -20,14 +20,18 @@ LOCAL_CFLAGS := -MMD -MP -O2 -std=c17 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -W
   -Wwrite-strings -Wstrict-prototypes -Wold-style-definition \
   -Wredundant-decls -Wnested-externs -Wmissing-include-dirs \
   -fno-common -fstrict-overflow -fstack-protector-strong -Wcast-qual \
-  -Wbad-function-cast -Wmissing-prototypes
+  -Wbad-function-cast -Wmissing-prototypes -Wc++-compat
 
 ifeq ($(COMPILER),gcc)
-	LOCAL_CFLAGS += -fanalyzer -Wstrict-aliasing=3 -Wlogical-op -Wduplicated-cond -Wduplicated-branches -Wrestrict
+	LOCAL_CFLAGS += -fanalyzer -Wstrict-aliasing=3 -Wlogical-op \
+  -Wduplicated-cond -Wduplicated-branches -Wrestrict -Wjump-misses-init
 endif
 
 ifeq ($(COMPILER),clang)
-	LOCAL_CFLAGS += -Wstrict-aliasing=2 -Wnewline-eof
+	LOCAL_CFLAGS += -Weverything -Wno-padded -Wno-reserved-identifier \
+  -Wno-declaration-after-statement -Wno-unsafe-buffer-usage \
+  -Wno-documentation-deprecated-sync -Wno-switch-enum -Wno-documentation-pedantic \
+  -Wno-disabled-macro-expansion
 endif
 
 MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))

@@ -61,7 +61,7 @@ int write_hex_to_file(const char *path, const uint8_t *bytes, size_t bytes_len) 
 		return -1;
 	}
 
-	char *hex_str = malloc(bytes_len * 2 + 1);
+	char *hex_str = (char *)malloc(bytes_len * 2 + 1);
 	if (!hex_str) {
 		fclose(file);
 		return -2;
@@ -111,7 +111,7 @@ int replace_in_file(const char *path, const char *target, const char *replacemen
 	size_t size = (size_t)lsize;
 	rewind(f);
 
-	char *data = malloc(size);
+	char *data = (char *)malloc(size);
 	if (!data) {
 		fclose(f);
 		return -3;
@@ -188,33 +188,31 @@ cleanup:
 
 int zeroize_device(const char *dev_path, uint64_t len) {
 	int err = 0;
-
 	int fd = open(dev_path, O_RDWR | O_SYNC);
-	if (fd < 0) {
-		err = -errno;
-		trace("open %s failed: %s\n", dev_path, strerror(errno));
-		goto cleanup;
-	}
+	{
+		if (fd < 0) {
+			err = -errno;
+			trace("open %s failed: %s\n", dev_path, strerror(errno));
+			goto cleanup;
+		}
 
-	int flags = fcntl(fd, F_GETFD);
-	if (flags >= 0) {
-		fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
-	}
+		int flags = fcntl(fd, F_GETFD);
+		if (flags >= 0) {
+			fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+		}
 
-	if (ioctl(fd, BLKZEROOUT, &(struct {
-		          uint64_t start;
-		          uint64_t length;
-	          }){0, len}) == -1) {
-		err = -errno;
-		trace("ioctl(BLKZEROOT) %s failed: %s\n", dev_path, strerror(errno));
-		goto cleanup;
-	}
+		uint64_t range[2] = {0, len};
+		if (ioctl(fd, BLKZEROOUT, range) == -1) {
+			err = -errno;
+			trace("ioctl(BLKZEROOT) %s failed: %s\n", dev_path, strerror(errno));
+			goto cleanup;
+		}
 
-	if (fsync(fd) == -1) {
-		err = -errno;
-		goto cleanup;
+		if (fsync(fd) == -1) {
+			err = -errno;
+			goto cleanup;
+		}
 	}
-
 cleanup:
 	if (fd >= 0) {
 		close(fd);

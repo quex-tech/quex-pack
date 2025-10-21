@@ -12,7 +12,7 @@
 
 #define MOCK_NETWORK_FD 133385079
 
-bool mock_socket_is_open = false;
+static bool mock_socket_is_open = false;
 
 struct network_data {
 	uint8_t *buf;
@@ -20,8 +20,8 @@ struct network_data {
 	size_t read_len;
 };
 
-struct network_data mock_network_incoming = {0};
-struct network_data mock_network_outgoing = {0};
+static struct network_data mock_network_incoming = {0};
+static struct network_data mock_network_outgoing = {0};
 
 static ssize_t mock_network_recv(struct network_data *data, void *buf, size_t len) {
 	size_t left_len = data->len - data->read_len;
@@ -38,7 +38,11 @@ static ssize_t mock_network_recv(struct network_data *data, void *buf, size_t le
 }
 
 static ssize_t mock_network_send(struct network_data *data, const void *buf, size_t len) {
-	data->buf = realloc(data->buf, data->len + len);
+	uint8_t *new_buf = (uint8_t *)realloc(data->buf, data->len + len);
+	if (!new_buf) {
+		return 0;
+	}
+	data->buf = new_buf;
 	memcpy(data->buf + data->len, buf, len);
 	data->len += len;
 

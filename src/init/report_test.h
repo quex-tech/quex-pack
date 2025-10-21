@@ -63,11 +63,11 @@ static void test_apply_partial_mask(void) {
 	memcpy(&report.tee_tcb_info, &tee_tcb_info, sizeof tee_tcb_info);
 	memcpy(&report.tee_info, &tee_info, sizeof tee_info);
 
-	struct td_key_request_mask mask = {.reportmacstruct_mask = 0b01010101,
-	                                   .tee_tcb_info_mask = 0b0000000101010101,
-	                                   .reserved_mask = 0b0,
-	                                   .tdinfo_base_mask = 0b0000010101010101,
-	                                   .tdinfo_extension_mask = 0b0};
+	struct td_key_request_mask mask = {.reportmacstruct_mask = 0x55,
+	                                   .tee_tcb_info_mask = 0x155,
+	                                   .reserved_mask = 0x0,
+	                                   .tdinfo_base_mask = 0x555,
+	                                   .tdinfo_extension_mask = 0x0};
 
 	sgx_report2_t expected_report = {.report_mac_struct = {.report_type = {.type = 1},
 	                                                       .reserved1 = {0},

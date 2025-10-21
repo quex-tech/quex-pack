@@ -52,8 +52,7 @@ static int rs_to_der_inner(const mbedtls_mpi *r, const mbedtls_mpi *s, uint8_t *
 	return 0;
 }
 
-int rs_to_der(const uint8_t rs[static 64], uint8_t *out_der, size_t max_der_len,
-              size_t *out_der_len) {
+int rs_to_der(const uint8_t rs[64], uint8_t *out_der, size_t max_der_len, size_t *out_der_len) {
 	int ret = 0;
 	mbedtls_mpi r;
 	mbedtls_mpi s;
@@ -79,8 +78,7 @@ int rs_to_der(const uint8_t rs[static 64], uint8_t *out_der, size_t max_der_len,
 	return ret;
 }
 
-int pk_to_der(const uint8_t pk[static 64], uint8_t *out_der, size_t max_der_len,
-              size_t *out_der_len) {
+int pk_to_der(const uint8_t pk[64], uint8_t *out_der, size_t max_der_len, size_t *out_der_len) {
 	uint8_t *p = out_der + max_der_len;
 	size_t len = 0;
 	size_t len_alg = 0;

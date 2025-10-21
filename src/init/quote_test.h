@@ -117,7 +117,7 @@ static sgx_quote3_t *read_quote(const char *filename, size_t *size_out) {
 	size_t size = (size_t)pos;
 	rewind(f);
 
-	sgx_quote3_t *buffer = malloc(size);
+	sgx_quote3_t *buffer = (sgx_quote3_t *)malloc(size);
 	if (!buffer) {
 		perror("malloc");
 		fclose(f);

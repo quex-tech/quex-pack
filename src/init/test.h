@@ -11,13 +11,15 @@ static int passed_count;
 static int failed_count;
 
 #define must(c, ...)                                                                               \
-	if (!(c)) {                                                                                \
-		failed_count++;                                                                    \
-		printf(__VA_ARGS__);                                                               \
-		printf("\n");                                                                      \
-	} else {                                                                                   \
-		passed_count++;                                                                    \
-	}
+	do {                                                                                       \
+		if (!(c)) {                                                                        \
+			failed_count++;                                                            \
+			printf(__VA_ARGS__);                                                       \
+			printf("\n");                                                              \
+		} else {                                                                           \
+			passed_count++;                                                            \
+		}                                                                                  \
+	} while (0)
 
 static int read_bin_file(const char *path, uint8_t **out, size_t *out_len) {
 	FILE *f = fopen(path, "rb");
@@ -34,7 +36,7 @@ static int read_bin_file(const char *path, uint8_t **out, size_t *out_len) {
 		return -1;
 	}
 	rewind(f);
-	uint8_t *buf = malloc((size_t)sz);
+	uint8_t *buf = (uint8_t *)malloc((size_t)sz);
 	if (!buf) {
 		fclose(f);
 		return -1;

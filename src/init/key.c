@@ -26,24 +26,25 @@ struct ecc_context {
 };
 
 static int init_ecc_context(struct ecc_context *ctx, int (*f_entropy)(void *, uint8_t *, size_t)) {
+	int err = 0;
 	mbedtls_entropy_context entropy;
-
-	mbedtls_ecp_group_init(&ctx->grp);
 	mbedtls_entropy_init(&entropy);
-	mbedtls_ctr_drbg_init(&ctx->drbg);
+	{
+		mbedtls_ecp_group_init(&ctx->grp);
+		mbedtls_ctr_drbg_init(&ctx->drbg);
 
-	int err = mbedtls_ecp_group_load(&ctx->grp, MBEDTLS_ECP_DP_SECP256K1);
-	if (err) {
-		trace("mbedtls_ecp_group_load failed: %d\n", err);
-		goto cleanup;
+		err = mbedtls_ecp_group_load(&ctx->grp, MBEDTLS_ECP_DP_SECP256K1);
+		if (err) {
+			trace("mbedtls_ecp_group_load failed: %d\n", err);
+			goto cleanup;
+		}
+		const uint8_t pers[] = "quex_init";
+		err = mbedtls_ctr_drbg_seed(&ctx->drbg, f_entropy, &entropy, pers, sizeof pers);
+		if (err) {
+			trace("mbedtls_ctr_drbg_seed failed: %d\n", err);
+			goto cleanup;
+		}
 	}
-	const uint8_t pers[] = "quex_init";
-	err = mbedtls_ctr_drbg_seed(&ctx->drbg, f_entropy, &entropy, pers, sizeof pers);
-	if (err) {
-		trace("mbedtls_ctr_drbg_seed failed: %d\n", err);
-		goto cleanup;
-	}
-
 cleanup:
 	mbedtls_entropy_free(&entropy);
 	return err;
@@ -76,8 +77,7 @@ cleanup:
 	return err;
 }
 
-static int get_pk(struct ecc_context *ctx, const uint8_t raw_sk[static 32],
-                  uint8_t out_pk[static 64]) {
+static int get_pk(struct ecc_context *ctx, const uint8_t raw_sk[32], uint8_t out_pk[64]) {
 	mbedtls_mpi sk;
 	mbedtls_ecp_point pk;
 	mbedtls_mpi_init(&sk);
@@ -109,7 +109,7 @@ cleanup:
 }
 
 static int decrypt_sk(struct ecc_context *ctx, const mbedtls_mpi *ephemeral_sk,
-                      const uint8_t ciphertext[static QUEX_CT_LEN], uint8_t out_sk[static 32]) {
+                      const uint8_t ciphertext[QUEX_CT_LEN], uint8_t out_sk[32]) {
 	uint8_t ikm[130] = {0};
 	uint8_t symmetric_key[32] = {0};
 	const uint8_t salt[] = "quex_salt";
@@ -219,7 +219,8 @@ static int recv_response(int client, struct td_response_msg *out_msg, sgx_quote3
 
 	trace("Got quote version %d\n", quote_header.header.version);
 
-	sgx_quote3_t *quote = malloc(sizeof quote_header + quote_header.signature_data_len);
+	sgx_quote3_t *quote =
+	    (sgx_quote3_t *)malloc(sizeof quote_header + quote_header.signature_data_len);
 
 	if (!quote) {
 		trace("Could not malloc for sgx_quote3_t\n");
@@ -264,154 +265,160 @@ static int compare_masked(const sgx_report2_t *first, const sgx_report2_t *secon
 
 int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
              const char *root_pem_path, int (*f_entropy)(void *, uint8_t *, size_t),
-             uint8_t out_sk[static 32], uint8_t out_pk[static 64]) {
+             uint8_t out_sk[32], uint8_t out_pk[64]) {
 	int sock = -1;
-
+	int err = 0;
 	struct ecc_context ctx;
-	int err = init_ecc_context(&ctx, f_entropy);
-	if (err) {
-		trace("init_ecc_context failed: %d\n", err);
-		goto cleanup;
-	}
-
-	struct td_key_request key_request;
-	err = read_hex(key_request_mask_hex, (uint8_t *)&key_request.mask, sizeof key_request.mask);
-	if (err) {
-		trace("Could not read key request mask %s: %d\n", key_request_mask_hex, err);
-		goto cleanup;
-	}
-
-	sgx_measurement_t mr_enclave;
-	err = read_hex(vault_mr_enclave_hex, (uint8_t *)&mr_enclave, sizeof mr_enclave);
-	if (err) {
-		trace("Could not read vault mr_enclave %s: %d\n", vault_mr_enclave_hex, err);
-		goto cleanup;
-	}
-
 	mbedtls_x509_crt root_crt;
 	mbedtls_x509_crt_init(&root_crt);
-	err = mbedtls_x509_crt_parse_file(&root_crt, root_pem_path);
-	if (err) {
-		trace("Could not load root certificate %s: %d\n", root_pem_path, err);
-		goto cleanup;
-	}
+	{
+		err = init_ecc_context(&ctx, f_entropy);
+		if (err) {
+			trace("init_ecc_context failed: %d\n", err);
+			goto cleanup;
+		}
 
-	sock = init_socket(PORT);
-	if (sock < 0) {
-		err = -1;
-		trace("init_socket(%d) failed: %d\n", PORT, sock);
-		goto cleanup;
-	}
+		struct td_key_request key_request;
+		err = read_hex(key_request_mask_hex, (uint8_t *)&key_request.mask,
+		               sizeof key_request.mask);
+		if (err) {
+			trace("Could not read key request mask %s: %d\n", key_request_mask_hex,
+			      err);
+			goto cleanup;
+		}
 
-	bool got_sk = false;
-	while (!got_sk && !err) {
-		int iter_err = 0;
+		sgx_measurement_t mr_enclave;
+		err = read_hex(vault_mr_enclave_hex, (uint8_t *)&mr_enclave, sizeof mr_enclave);
+		if (err) {
+			trace("Could not read vault mr_enclave %s: %d\n", vault_mr_enclave_hex,
+			      err);
+			goto cleanup;
+		}
 
-		trace("Waiting for a connection...\n");
-		int client = accept(sock, NULL, NULL);
-		if (client < 0) {
-			int accept_err = errno;
-			trace("accept failed: %s\n", strerror(accept_err));
-			if (accept_err == EINVAL || accept_err == EBADF) {
-				err = -1;
+		err = mbedtls_x509_crt_parse_file(&root_crt, root_pem_path);
+		if (err) {
+			trace("Could not load root certificate %s: %d\n", root_pem_path, err);
+			goto cleanup;
+		}
+
+		sock = init_socket(PORT);
+		if (sock < 0) {
+			err = -1;
+			trace("init_socket(%d) failed: %d\n", PORT, sock);
+			goto cleanup;
+		}
+
+		bool got_sk = false;
+		while (!got_sk && !err) {
+			int iter_err = 0;
+
+			trace("Waiting for a connection...\n");
+			int client = accept(sock, NULL, NULL);
+			if (client < 0) {
+				int accept_err = errno;
+				trace("accept failed: %s\n", strerror(accept_err));
+				if (accept_err == EINVAL || accept_err == EBADF) {
+					err = -1;
+				}
+				continue;
 			}
-			continue;
+
+			mbedtls_mpi ephemeral_sk;
+			mbedtls_mpi_init(&ephemeral_sk);
+			sgx_quote3_t *quote = NULL;
+			{
+				tdx_report_data_t report_data = {0};
+				iter_err = gen_report_data(&ctx, &ephemeral_sk, &report_data);
+				if (iter_err) {
+					trace("gen_report_data failed: %d\n", iter_err);
+					goto cleanup_iteration;
+				}
+
+				tdx_report_t report = {0};
+				tdx_attest_error_t attest_err =
+				    tdx_att_get_report(&report_data, &report);
+				if (attest_err != TDX_ATTEST_SUCCESS) {
+					trace("tdx_att_get_report failed: %d\n", attest_err);
+					goto cleanup_iteration;
+				}
+
+				memcpy(&key_request.tdreport, &report, sizeof report);
+
+				trace("Sending key request...\n");
+				send(client, &key_request, sizeof key_request, MSG_NOSIGNAL);
+
+				struct td_response_msg msg = {0};
+
+				iter_err = recv_response(client, &msg, &quote);
+				if (iter_err) {
+					trace("recv_response failed\n");
+					goto cleanup_iteration;
+				}
+
+				got_sk = true;
+
+				if (mbedtls_ct_memcmp(&msg.mask, &key_request.mask,
+				                      sizeof key_request.mask) != 0) {
+					trace("Masks do not match\n");
+					got_sk = false;
+				}
+
+				if (compare_masked(&msg.tdreport, &key_request.tdreport,
+				                   &key_request.mask) != 0) {
+					trace("Masked reports do not match\n");
+					got_sk = false;
+				}
+
+				if (mbedtls_ct_memcmp(&quote->report_body.mr_enclave, &mr_enclave,
+				                      sizeof mr_enclave) != 0) {
+					trace("Wrong mr_enclave\n");
+					got_sk = false;
+				}
+
+				iter_err = verify_quote(quote, &root_crt);
+				if (iter_err) {
+					trace("Invalid quote: %d\n", iter_err);
+					got_sk = false;
+				}
+
+				uint8_t msg_hash[32] = {0};
+				iter_err = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
+				                      (uint8_t *)&msg, sizeof msg, msg_hash);
+				if (iter_err) {
+					trace("mbedtls_md failed: %d\n", iter_err);
+					got_sk = false;
+				}
+
+				if (mbedtls_ct_memcmp(&quote->report_body.report_data, msg_hash,
+				                      sizeof msg_hash) != 0) {
+					trace("Quote report data does not contain message hash\n");
+					got_sk = false;
+				}
+
+				iter_err = decrypt_sk(&ctx, &ephemeral_sk, msg.ciphertext, out_sk);
+				if (iter_err) {
+					trace("decrypt_sk failed: %d\n", iter_err);
+					got_sk = false;
+				}
+
+				trace("Successfully got the secret key: %d\n", got_sk);
+			}
+		cleanup_iteration:
+			mbedtls_mpi_free(&ephemeral_sk);
+			free(quote);
+			close(client);
 		}
 
-		mbedtls_mpi ephemeral_sk;
-		mbedtls_mpi_init(&ephemeral_sk);
-
-		sgx_quote3_t *quote = NULL;
-
-		tdx_report_data_t report_data = {0};
-		iter_err = gen_report_data(&ctx, &ephemeral_sk, &report_data);
-		if (iter_err) {
-			trace("gen_report_data failed: %d\n", iter_err);
-			goto cleanup_iteration;
+		if (err) {
+			goto cleanup;
 		}
 
-		tdx_report_t report = {0};
-		tdx_attest_error_t attest_err = tdx_att_get_report(&report_data, &report);
-		if (attest_err != TDX_ATTEST_SUCCESS) {
-			trace("tdx_att_get_report failed: %d\n", attest_err);
-			goto cleanup_iteration;
+		err = get_pk(&ctx, out_sk, out_pk);
+		if (err) {
+			trace("get_pk failed: %d\n", err);
+			goto cleanup;
 		}
-
-		memcpy(&key_request.tdreport, &report, sizeof report);
-
-		trace("Sending key request...\n");
-		send(client, &key_request, sizeof key_request, MSG_NOSIGNAL);
-
-		struct td_response_msg msg = {0};
-
-		iter_err = recv_response(client, &msg, &quote);
-		if (iter_err) {
-			trace("recv_response failed\n");
-			goto cleanup_iteration;
-		}
-
-		got_sk = true;
-
-		if (mbedtls_ct_memcmp(&msg.mask, &key_request.mask, sizeof key_request.mask) != 0) {
-			trace("Masks do not match\n");
-			got_sk = false;
-		}
-
-		if (compare_masked(&msg.tdreport, &key_request.tdreport, &key_request.mask) != 0) {
-			trace("Masked reports do not match\n");
-			got_sk = false;
-		}
-
-		if (mbedtls_ct_memcmp(&quote->report_body.mr_enclave, &mr_enclave,
-		                      sizeof mr_enclave) != 0) {
-			trace("Wrong mr_enclave\n");
-			got_sk = false;
-		}
-
-		iter_err = verify_quote(quote, &root_crt);
-		if (iter_err) {
-			trace("Invalid quote: %d\n", iter_err);
-			got_sk = false;
-		}
-
-		uint8_t msg_hash[32] = {0};
-		iter_err = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (uint8_t *)&msg,
-		                      sizeof msg, msg_hash);
-		if (iter_err) {
-			trace("mbedtls_md failed: %d\n", iter_err);
-			got_sk = false;
-		}
-
-		if (mbedtls_ct_memcmp(&quote->report_body.report_data, msg_hash, sizeof msg_hash) !=
-		    0) {
-			trace("Quote report data does not contain message hash\n");
-			got_sk = false;
-		}
-
-		iter_err = decrypt_sk(&ctx, &ephemeral_sk, msg.ciphertext, out_sk);
-		if (iter_err) {
-			trace("decrypt_sk failed: %d\n", iter_err);
-			got_sk = false;
-		}
-
-		trace("Successfully got the secret key: %d\n", got_sk);
-
-	cleanup_iteration:
-		mbedtls_mpi_free(&ephemeral_sk);
-		free(quote);
-		close(client);
 	}
-
-	if (err) {
-		goto cleanup;
-	}
-
-	err = get_pk(&ctx, out_sk, out_pk);
-	if (err) {
-		trace("get_pk failed: %d\n", err);
-		goto cleanup;
-	}
-
 cleanup:
 	if (sock >= 0) {
 		close(sock);
