@@ -174,7 +174,7 @@ static void test_verify_quote_valid(void) {
 		goto cleanup;
 	}
 
-	must(verify_quote(quote, &root_crt) == 0, "Valid quote must pass verification");
+	must(verify_quote(quote, quote_len, &root_crt) == 0, "Valid quote must pass verification");
 
 cleanup:
 	free(quote);

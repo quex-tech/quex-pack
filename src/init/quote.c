@@ -88,9 +88,15 @@ struct parsed_quote {
 	const uint8_t *crt_data;
 };
 
-static int parse_quote(const sgx_quote3_t *quote, struct parsed_quote *out_quote) {
+static int parse_quote(const sgx_quote3_t *quote, size_t quote_len,
+                       struct parsed_quote *out_quote) {
 	if (!is_quote_header_well_formed(quote)) {
 		trace("Quote header is ill-formed\n");
+		return -1;
+	}
+
+	if (quote_len != sizeof(sgx_quote3_t) + quote->signature_data_len) {
+		trace("Quote signature_data_len is wrong\n");
 		return -1;
 	}
 
@@ -313,11 +319,11 @@ static int verify_quote_sig(const struct parsed_quote *quote) {
 	return signature_is_valid ? 0 : -1;
 }
 
-int verify_quote(const sgx_quote3_t *quote, mbedtls_x509_crt *root_crt) {
+int verify_quote(const sgx_quote3_t *quote, size_t quote_len, mbedtls_x509_crt *root_crt) {
 	trace("Verifying quote...\n");
 
 	struct parsed_quote parsed = {0};
-	int err = parse_quote(quote, &parsed);
+	int err = parse_quote(quote, quote_len, &parsed);
 	if (err) {
 		trace("Could not parse the quote: %d\n", err);
 		return err;

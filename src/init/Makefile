@@ -13,7 +13,7 @@ else
     COMPILER := clang
 endif
 
-LOCAL_CFLAGS := -MMD -MP -O2 -std=c17 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror \
+LOCAL_CFLAGS := -O2 -std=c17 -Wall -Wextra -Werror \
   -Wshadow -Wdouble-promotion -Wformat=2 -Wformat-truncation -Wformat-overflow \
   -Wconversion  -Wnull-dereference \
   -Wuninitialized -Wvla -Walloca -Wno-unused-parameter \
@@ -63,13 +63,13 @@ FUZZ_CC := clang
 FUZZ_CFLAGS := -O1 -g -fsanitize=address,undefined,fuzzer
 
 INCLUDES := -I$(VENDOR_OUT_DIR)/usr/include -I$(VENDOR_OUT_DIR)/usr/lib/sgx-sdk/include
-LIBDIRS := -L$(VENDOR_OUT_DIR)/usr/lib -L$(VENDOR_OUT_DIR)/usr/lib/x86_64-linux-gnu
-LIBS := -lmbedx509 -lmbedcrypto -ltdx_attest -ldevmapper -lm
+CPPFLAGS := -MMD -MP -D_POSIX_C_SOURCE=200809L $(INCLUDES)
+
+LDFLAGS := -L$(VENDOR_OUT_DIR)/usr/lib -L$(VENDOR_OUT_DIR)/usr/lib/x86_64-linux-gnu
+LDLIBS := -lmbedx509 -lmbedcrypto -ltdx_attest -ldevmapper -lm
 LIBPATHS := $(VENDOR_OUT_DIR)/usr/lib:$(VENDOR_OUT_DIR)/usr/lib/x86_64-linux-gnu
 
-COMPILE.c = $(CC) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) -c
-
-.PHONY: all clean distclean test fuzz lint format
+.PHONY: all clean distclean test quote_fuzz lint format
 
 all: $(OUT)
 
@@ -84,13 +84,15 @@ include $(VENDOR_DIR)/intel.mk
 include $(VENDOR_DIR)/lvm.mk
 
 $(OUT): $(OBJS)
-	@$(CC) $(OBJS) $(MODULE_OBJS) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) $(LIBDIRS) $(LIBS) -o $@
+	@echo "LD $<"
+	@$(CC) $(OBJS) $(MODULE_OBJS) $(LDFLAGS) $(LDLIBS) -o $@
 
 $(TEST_OUT): $(TEST_OBJS)
-	@$(CC) $(TEST_OBJS) $(MODULE_OBJS) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) $(LIBDIRS) $(LIBS) $(MOCK_NETWORK) $(MOCK_TDX) -o $@
+	@echo "LD $<"
+	@$(CC) $(TEST_OBJS) $(MODULE_OBJS) $(LDFLAGS) $(LDLIBS) $(MOCK_NETWORK) $(MOCK_TDX) -o $@
 
-$(QUOTE_FUZZ_OUT): $(QUOTE_FUZZ_SRCS) $(MODULE_OBJS)
-	@$(FUZZ_CC) $(QUOTE_FUZZ_SRCS) $(MODULE_OBJS) -O1 -g -fsanitize=address,undefined,fuzzer $(INCLUDES) $(LIBDIRS) $(LIBS) -o $@
+$(QUOTE_FUZZ_OUT): $(QUOTE_FUZZ_SRCS) $(MODULE_SRCS) mbedtls intel lvm
+	@$(FUZZ_CC) $(FUZZ_CFLAGS) $(CPPFLAGS) $(QUOTE_FUZZ_SRCS) $(MODULE_SRCS) $(LDFLAGS) $(LDLIBS) -o $@
 
 $(OBJS): $(MODULE_OBJS)
 $(TEST_OBJS): $(MODULE_OBJS)
@@ -112,12 +114,12 @@ format:
 
 %.o: %.c
 	@echo "CC $<"
-	@$(COMPILE.c) $< -o $@
+	@$(CC) $(CPPFLAGS) $(LOCAL_CFLAGS) $(CFLAGS) -c $< -o $@
 
 clean:
-	@$(RM) -f $(OUT) $(VENDOR_DIR)/.*-stamp
+	@$(RM) -f $(OUT) $(TEST_OUT) $(QUOTE_FUZZ_OUT) $(VENDOR_DIR)/.*-stamp
 	@$(RM) -rf $(VENDOR_OUT_DIR) $(VENDOR_SRC_DIR)
-	@$(RM) -f $(OBJS) $(DEPS)
+	@$(RM) -f $(OBJS) $(DEPS) $(TEST_OBJS) $(TEST_DEPS) $(MODULE_OBJS) $(MODULE_DEPS)
 
 distclean: clean
 	@$(RM) -rf $(VENDOR_DOWNLOADS_DIR)

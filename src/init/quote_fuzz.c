@@ -41,7 +41,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t len) {
 	}
 	memcpy(quote, data, len);
 
-	verify_quote(quote, &root_crt);
+	verify_quote(quote, len, &root_crt);
 	free(quote);
 	mbedtls_x509_crt_free(&root_crt);
 	return 0;

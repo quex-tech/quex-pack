@@ -184,7 +184,8 @@ static int decrypt_sk(struct ecc_context *ctx, const mbedtls_mpi *ephemeral_sk,
 	return success ? 0 : -1;
 }
 
-static int recv_response(int client, struct td_response_msg *out_msg, sgx_quote3_t **out_quote) {
+static int recv_response(int client, struct td_response_msg *out_msg, sgx_quote3_t **out_quote,
+                         size_t *out_quote_len) {
 	ssize_t received = recv(client, out_msg, sizeof *out_msg, MSG_WAITALL);
 	if (received != sizeof *out_msg) {
 #ifdef ENABLE_TRACE
@@ -219,8 +220,8 @@ static int recv_response(int client, struct td_response_msg *out_msg, sgx_quote3
 
 	trace("Got quote version %d\n", quote_header.header.version);
 
-	sgx_quote3_t *quote =
-	    (sgx_quote3_t *)malloc(sizeof quote_header + quote_header.signature_data_len);
+	size_t quote_len = sizeof quote_header + quote_header.signature_data_len;
+	sgx_quote3_t *quote = (sgx_quote3_t *)malloc(quote_len);
 
 	if (!quote) {
 		trace("Could not malloc for sgx_quote3_t\n");
@@ -248,6 +249,7 @@ static int recv_response(int client, struct td_response_msg *out_msg, sgx_quote3
 	trace("Received %d bytes of quote signature\n", quote_header.signature_data_len);
 
 	*out_quote = quote;
+	*out_quote_len = quote_len;
 
 	return 0;
 }
@@ -349,7 +351,8 @@ int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
 
 				struct td_response_msg msg = {0};
 
-				iter_err = recv_response(client, &msg, &quote);
+				size_t quote_len = 0;
+				iter_err = recv_response(client, &msg, &quote, &quote_len);
 				if (iter_err) {
 					trace("recv_response failed\n");
 					goto cleanup_iteration;
@@ -375,7 +378,7 @@ int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
 					got_sk = false;
 				}
 
-				iter_err = verify_quote(quote, &root_crt);
+				iter_err = verify_quote(quote, quote_len, &root_crt);
 				if (iter_err) {
 					trace("Invalid quote: %d\n", iter_err);
 					got_sk = false;
