@@ -49,7 +49,8 @@ TEST_SRCS := test.c
 TEST_OBJS := $(TEST_SRCS:.c=.o)
 TEST_DEPS := $(TEST_SRCS:.c=.d)
 TEST_OUT := test.bin
-TEST_LIBS := -lpthread
+MOCK_NETWORK := -Wl,--wrap=socket -Wl,--wrap=setsockopt -Wl,--wrap=bind -Wl,--wrap=listen -Wl,--wrap=accept -Wl,--wrap=send -Wl,--wrap=recv -Wl,--wrap=__recv_chk -Wl,--wrap=close
+MOCK_TDX := -Wl,--wrap=tdx_att_get_quote -Wl,--wrap=tdx_att_free_quote -Wl,--wrap=tdx_att_get_report
 
 QUOTE_FUZZ_SRCS := quote_fuzz.c
 QUOTE_FUZZ_OUT := quote_fuzz.bin
@@ -82,7 +83,7 @@ $(OUT): $(OBJS)
 	@$(CC) $(OBJS) $(MODULE_OBJS) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) $(LIBDIRS) $(LIBS) -o $@
 
 $(TEST_OUT): $(TEST_OBJS)
-	@$(CC) $(TEST_OBJS) $(MODULE_OBJS) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) $(LIBDIRS) $(LIBS) $(TEST_LIBS) -o $@
+	@$(CC) $(TEST_OBJS) $(MODULE_OBJS) $(LOCAL_CFLAGS) $(CFLAGS) $(INCLUDES) $(LIBDIRS) $(LIBS) $(MOCK_NETWORK) $(MOCK_TDX) -o $@
 
 $(QUOTE_FUZZ_OUT): $(QUOTE_FUZZ_SRCS) $(MODULE_OBJS)
 	@$(FUZZ_CC) $(QUOTE_FUZZ_SRCS) $(MODULE_OBJS) -O1 -g -fsanitize=address,undefined,fuzzer $(INCLUDES) $(LIBDIRS) $(LIBS) -o $@

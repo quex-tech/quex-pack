@@ -4,7 +4,6 @@
 #include "ec.h"
 #include "quote.h"
 #include "report.h"
-#include "tdx.h"
 #include "types.h"
 #include "utils.h"
 #include <arpa/inet.h>
@@ -264,9 +263,8 @@ static int compare_masked(const sgx_report2_t *first, const sgx_report2_t *secon
 }
 
 int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
-             const char *root_pem_path, const struct tdx_iface *tdx,
-             int (*f_entropy)(void *, uint8_t *, size_t), uint8_t out_sk[static 32],
-             uint8_t out_pk[static 64]) {
+             const char *root_pem_path, int (*f_entropy)(void *, uint8_t *, size_t),
+             uint8_t out_sk[static 32], uint8_t out_pk[static 64]) {
 	int sock = -1;
 
 	struct ecc_context ctx;
@@ -306,17 +304,21 @@ int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
 	}
 
 	bool got_sk = false;
-	while (!got_sk) {
+	while (!got_sk && !err) {
 		int iter_err = 0;
+
 		trace("Waiting for a connection...\n");
 		int client = accept(sock, NULL, NULL);
 		if (client < 0) {
-			trace("accept failed: %d\n", client);
+			int accept_err = errno;
+			trace("accept failed: %s\n", strerror(accept_err));
+			if (accept_err == EINVAL || accept_err == EBADF) {
+				err = -1;
+			}
 			continue;
 		}
 
 		mbedtls_mpi ephemeral_sk;
-
 		mbedtls_mpi_init(&ephemeral_sk);
 
 		sgx_quote3_t *quote = NULL;
@@ -329,7 +331,7 @@ int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
 		}
 
 		tdx_report_t report = {0};
-		tdx_attest_error_t attest_err = tdx->get_report(&report_data, &report);
+		tdx_attest_error_t attest_err = tdx_att_get_report(&report_data, &report);
 		if (attest_err != TDX_ATTEST_SUCCESS) {
 			trace("tdx_att_get_report failed: %d\n", attest_err);
 			goto cleanup_iteration;
@@ -372,7 +374,7 @@ int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
 			got_sk = false;
 		}
 
-		uint8_t msg_hash[32];
+		uint8_t msg_hash[32] = {0};
 		iter_err = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (uint8_t *)&msg,
 		                      sizeof msg, msg_hash);
 		if (iter_err) {
@@ -398,6 +400,10 @@ int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
 		mbedtls_mpi_free(&ephemeral_sk);
 		free(quote);
 		close(client);
+	}
+
+	if (err) {
+		goto cleanup;
 	}
 
 	err = get_pk(&ctx, out_sk, out_pk);

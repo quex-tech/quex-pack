@@ -5,7 +5,6 @@
 #include "key.h"
 #include "mkfs.h"
 #include "mount.h"
-#include "tdx.h"
 #include "utils.h"
 #include <errno.h>
 #include <mbedtls/entropy.h>
@@ -17,6 +16,7 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <tdx_attest.h>
 #include <unistd.h>
 
 #define SECRET_KEY_TEMPLATE                                                                        \
@@ -218,7 +218,7 @@ cleanup:
 	return err;
 }
 
-static int save_quote(const uint8_t pk[static 64], const char *path, const struct tdx_iface *tdx) {
+static int save_quote(const uint8_t pk[static 64], const char *path) {
 	uint8_t *p_quote_buf = NULL;
 	tdx_report_data_t report_data = {0};
 	memcpy(&report_data, pk, 64);
@@ -226,8 +226,8 @@ static int save_quote(const uint8_t pk[static 64], const char *path, const struc
 	tdx_uuid_t selected_att_key_id = {0};
 	uint32_t quote_size = 0;
 	int err = 0;
-	tdx_attest_error_t attest_err = tdx->get_quote(&report_data, NULL, 0, &selected_att_key_id,
-	                                               &p_quote_buf, &quote_size, 0);
+	tdx_attest_error_t attest_err = tdx_att_get_quote(
+	    &report_data, NULL, 0, &selected_att_key_id, &p_quote_buf, &quote_size, 0);
 	if (attest_err != TDX_ATTEST_SUCCESS) {
 		trace("tdx_att_get_quote failed: %d\n", err);
 		err = -1;
@@ -242,7 +242,7 @@ static int save_quote(const uint8_t pk[static 64], const char *path, const struc
 
 cleanup:
 	if (p_quote_buf) {
-		tdx->free_quote(p_quote_buf);
+		tdx_att_free_quote(p_quote_buf);
 	}
 	return err;
 }
@@ -334,22 +334,16 @@ static int init(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	const struct tdx_iface tdx_ops = {
-	    .get_quote = tdx_att_get_quote,
-	    .free_quote = tdx_att_free_quote,
-	    .get_report = tdx_att_get_report,
-	};
-
 	uint8_t sk[32] = {0};
 	uint8_t pk[64] = {0};
 	err = get_keys(parameters.key_request_mask, parameters.vault_mrenclave, ROOT_PEM_PATH,
-	               &tdx_ops, mbedtls_entropy_func, sk, pk);
+	               mbedtls_entropy_func, sk, pk);
 	if (err) {
 		trace("get_keys failed: %d\n", err);
 		goto cleanup;
 	}
 
-	err = save_quote(pk, QUOTE_PATH, &tdx_ops);
+	err = save_quote(pk, QUOTE_PATH);
 	if (err) {
 		trace("save_quote failed: %d\n", err);
 		goto cleanup;
