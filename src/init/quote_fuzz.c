@@ -3,7 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-// cppcheck-suppress unusedFunction
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t len);
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t len) {
 	if (len < sizeof(sgx_quote3_t)) {
 		return 0;

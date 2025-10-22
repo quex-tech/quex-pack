@@ -2,4 +2,8 @@ init
 *.o
 *.d
 quote_fuzz_seeds/*
-!quote_fuzz_seeds/quote.dat
+!quote_fuzz_seeds/*.dat
+args_fuzz_seeds/*
+!args_fuzz_seeds/*.dat
+*.profraw
+*.profdata

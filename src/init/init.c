@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
+#include "args.h"
 #include "dm.h"
 #include "integrity_crypt.h"
 #include "key.h"
@@ -27,108 +28,9 @@
 #define ROOT_PEM_PATH "/etc/root.pem"
 #define QUOTE_PATH "/var/data/quote.txt"
 
-#define MAX_DISKS 8
-
 static const uint8_t hkdf_salt[32] = {
     0x7f, 0x56, 0x26, 0xb9, 0xf2, 0x95, 0x8c, 0x47, 0xbe, 0x9d, 0x3d, 0x7b, 0xb1, 0x6d, 0xb6, 0xf2,
     0x84, 0x84, 0x14, 0x25, 0x8a, 0xa7, 0x3a, 0x5a, 0x4f, 0x43, 0x9d, 0xe3, 0x18, 0x65, 0xa7, 0x3a};
-
-struct init_parameters {
-	const char *key_request_mask;
-	const char *vault_mrenclave;
-	const char *workload_path;
-	struct mount_spec mount_specs[MAX_DISKS];
-	size_t mount_specs_len;
-	struct mkfs_spec mkfs_specs[MAX_DISKS];
-	size_t mkfs_specs_len;
-	struct integrity_spec integrity_specs[MAX_DISKS];
-	size_t integrity_specs_len;
-	struct crypt_spec crypt_specs[MAX_DISKS];
-	size_t crypt_specs_len;
-};
-
-static int parse_init_parameter(const char *arg, struct init_parameters *parsed) {
-	char *eq = (char *)strchr(arg, '=');
-	if (!eq) {
-		return 0;
-	}
-
-	char *value = eq + 1;
-
-	if (strncmp(arg, "key_request_mask=", strlen("key_request_mask=")) == 0) {
-		parsed->key_request_mask = value;
-		return 0;
-	}
-
-	if (strncmp(arg, "vault_mrenclave=", strlen("vault_mrenclave=")) == 0) {
-		parsed->vault_mrenclave = value;
-		return 0;
-	}
-
-	if (strncmp(arg, "workload=", strlen("workload=")) == 0) {
-		if (strlen(value) > 192) {
-			trace("Workload path is too long\n");
-			return -1;
-		}
-		parsed->workload_path = value;
-		return 0;
-	}
-
-	if (strncmp(arg, "integrity=", strlen("integrity=")) == 0) {
-		if (parsed->integrity_specs_len >= MAX_DISKS) {
-			trace("Too many disks\n");
-			return -1;
-		}
-		int err = parse_integrity_spec(
-		    value, &parsed->integrity_specs[parsed->integrity_specs_len++]);
-		if (err) {
-			trace("parse_integrity_spec failed: %d\n", err);
-			return err;
-		}
-		return 0;
-	}
-
-	if (strncmp(arg, "crypt=", strlen("crypt=")) == 0) {
-		if (parsed->crypt_specs_len >= MAX_DISKS) {
-			trace("Too many disks\n");
-			return -1;
-		}
-		int err = parse_crypt_spec(value, &parsed->crypt_specs[parsed->crypt_specs_len++]);
-		if (err) {
-			trace("parse_crypt_spec failed: %d\n", err);
-			return err;
-		}
-		return 0;
-	}
-
-	if (strncmp(arg, "mkfs=", strlen("mkfs=")) == 0) {
-		if (parsed->mkfs_specs_len >= MAX_DISKS) {
-			trace("Too many disks\n");
-			return -1;
-		}
-		int err = parse_mkfs_spec(value, &parsed->mkfs_specs[parsed->mkfs_specs_len++]);
-		if (err) {
-			trace("parse_mkfs_spec failed: %d\n", err);
-			return err;
-		}
-		return 0;
-	}
-
-	if (strncmp(arg, "mount=", strlen("mount=")) == 0) {
-		if (parsed->mount_specs_len >= MAX_DISKS) {
-			trace("Too many disks\n");
-			return -1;
-		}
-		int err = parse_mount_spec(value, &parsed->mount_specs[parsed->mount_specs_len++]);
-		if (err) {
-			trace("parse_mount_spec failed: %d\n", err);
-			return err;
-		}
-		return 0;
-	}
-
-	return 0;
-}
 
 static int handle_integrity(const uint8_t *prk, size_t prk_len, const mbedtls_md_info_t *md,
                             struct integrity_spec spec) {
@@ -297,28 +199,22 @@ cleanup:
 }
 
 static int init(int argc, char *argv[]) {
+	umask(S_IRWXG | S_IRWXO);
 	int err = 0;
 	uint8_t prk[MBEDTLS_MD_MAX_SIZE] = {0};
 	uint8_t sk[32] = {0};
 	uint8_t pk[64] = {0};
 	{
-		struct init_parameters parameters = {
-		    .key_request_mask = "", .vault_mrenclave = "", .workload_path = "/opt/bundle"};
-
-		umask(0077);
 		err = prctl(PR_SET_DUMPABLE, 0);
 		if (err) {
 			trace("prctl failed: %s\n", strerror(errno));
 			goto cleanup;
 		}
 
-		for (int i = 1; i < argc; i++) {
-			trace("argv[%d] = %s\n", i, argv[i]);
-			err = parse_init_parameter(argv[i], &parameters);
-			if (err) {
-				goto cleanup;
-			}
-		}
+		struct init_args parameters = {
+		    .key_request_mask = "", .vault_mrenclave = "", .workload_path = "/opt/bundle"};
+
+		parse_args(argc, argv, &parameters);
 
 		err = mount("devtmpfs", "/dev", "devtmpfs", MS_NOSUID | MS_NOEXEC, "mode=0755");
 		if (err) {

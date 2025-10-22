@@ -40,7 +40,7 @@ VENDOR_DOWNLOADS_DIR := $(VENDOR_DIR)/downloads
 VENDOR_SRC_DIR := $(VENDOR_DIR)/src
 VENDOR_OUT_DIR := $(VENDOR_DIR)/build
 
-MODULE_SRCS := key.c report.c quote.c der.c ec.c integrity_crypt.c mount.c mkfs.c dm.c utils.c
+MODULE_SRCS := key.c report.c quote.c der.c ec.c args.c integrity_crypt.c mount.c mkfs.c dm.c utils.c
 MODULE_OBJS := $(MODULE_SRCS:.c=.o)
 MODULE_DEPS := $(MODULE_SRCS:.c=.d)
 
@@ -56,11 +56,9 @@ TEST_OUT := test.bin
 MOCK_NETWORK := -Wl,--wrap=socket -Wl,--wrap=setsockopt -Wl,--wrap=bind -Wl,--wrap=listen -Wl,--wrap=accept -Wl,--wrap=send -Wl,--wrap=recv -Wl,--wrap=__recv_chk -Wl,--wrap=close
 MOCK_TDX := -Wl,--wrap=tdx_att_get_quote -Wl,--wrap=tdx_att_free_quote -Wl,--wrap=tdx_att_get_report
 
-QUOTE_FUZZ_SRCS := quote_fuzz.c
-QUOTE_FUZZ_OUT := quote_fuzz.bin
-
 FUZZ_CC := clang
-FUZZ_CFLAGS := -O1 -g -fsanitize=address,undefined,fuzzer
+FUZZ_CFLAGS := -O1 -g -fsanitize=address,undefined,fuzzer -fprofile-instr-generate -fcoverage-mapping
+FUZZ_ARGS ?=
 
 INCLUDES := -I$(VENDOR_OUT_DIR)/usr/include -I$(VENDOR_OUT_DIR)/usr/lib/sgx-sdk/include
 CPPFLAGS := -MMD -MP -D_POSIX_C_SOURCE=200809L $(INCLUDES)
@@ -69,7 +67,7 @@ LDFLAGS := -L$(VENDOR_OUT_DIR)/usr/lib -L$(VENDOR_OUT_DIR)/usr/lib/x86_64-linux-
 LDLIBS := -lmbedx509 -lmbedcrypto -ltdx_attest -ldevmapper -lm
 LIBPATHS := $(VENDOR_OUT_DIR)/usr/lib:$(VENDOR_OUT_DIR)/usr/lib/x86_64-linux-gnu
 
-.PHONY: all clean distclean test quote_fuzz lint format
+.PHONY: all clean distclean test fuzz_args fuzz_quote lint format
 
 all: $(OUT)
 
@@ -91,9 +89,6 @@ $(TEST_OUT): $(TEST_OBJS)
 	@echo "LD $<"
 	@$(CC) $(TEST_OBJS) $(MODULE_OBJS) $(LDFLAGS) $(LDLIBS) $(MOCK_NETWORK) $(MOCK_TDX) -o $@
 
-$(QUOTE_FUZZ_OUT): $(QUOTE_FUZZ_SRCS) $(MODULE_SRCS) mbedtls intel lvm
-	@$(FUZZ_CC) $(FUZZ_CFLAGS) $(CPPFLAGS) $(QUOTE_FUZZ_SRCS) $(MODULE_SRCS) $(LDFLAGS) $(LDLIBS) -o $@
-
 $(OBJS): $(MODULE_OBJS)
 $(TEST_OBJS): $(MODULE_OBJS)
 $(MODULE_OBJS): mbedtls intel lvm
@@ -101,8 +96,23 @@ $(MODULE_OBJS): mbedtls intel lvm
 test: $(TEST_OUT)
 	@LD_LIBRARY_PATH=$(LIBPATHS) ./$(TEST_OUT)
 
-quote_fuzz: $(QUOTE_FUZZ_OUT)
-	@LD_LIBRARY_PATH=$(LIBPATHS) ./$(QUOTE_FUZZ_OUT) -max_len=6000 ./quote_fuzz_seeds/
+ARGS_FUZZ_SRCS := args_fuzz.c
+ARGS_FUZZ_OUT := fuzz_args.bin
+
+$(ARGS_FUZZ_OUT): $(ARGS_FUZZ_SRCS) $(MODULE_SRCS)
+	$(FUZZ_CC) $(FUZZ_CFLAGS) $(CPPFLAGS) $(ARGS_FUZZ_SRCS) $(MODULE_SRCS) $(LDFLAGS) $(LDLIBS) -o $@
+
+fuzz_args: $(ARGS_FUZZ_OUT)
+	@LD_LIBRARY_PATH=$(LIBPATHS) ./$(ARGS_FUZZ_OUT) -max_len=6000 -dict=./args_fuzz.dict $(FUZZ_ARGS) ./args_fuzz_seeds/
+
+QUOTE_FUZZ_SRCS := quote_fuzz.c
+QUOTE_FUZZ_OUT := fuzz_quote.bin
+
+$(QUOTE_FUZZ_OUT): $(QUOTE_FUZZ_SRCS) $(MODULE_SRCS) mbedtls intel lvm
+	@$(FUZZ_CC) $(FUZZ_CFLAGS) $(CPPFLAGS) $(QUOTE_FUZZ_SRCS) $(MODULE_SRCS) $(LDFLAGS) $(LDLIBS) -o $@
+
+fuzz_quote: $(QUOTE_FUZZ_OUT)
+	@LD_LIBRARY_PATH=$(LIBPATHS) ./$(QUOTE_FUZZ_OUT) -max_len=6000 $(FUZZ_ARGS) ./quote_fuzz_seeds/
 
 lint:
 	@clang-format --dry-run -Werror *.c *.h
@@ -117,9 +127,8 @@ format:
 	@$(CC) $(CPPFLAGS) $(LOCAL_CFLAGS) $(CFLAGS) -c $< -o $@
 
 clean:
-	@$(RM) -f $(OUT) $(TEST_OUT) $(QUOTE_FUZZ_OUT) $(VENDOR_DIR)/.*-stamp
+	@$(RM) -f $(OUT) $(TEST_OUT) $(QUOTE_FUZZ_OUT) $(ARGS_FUZZ_OUT) *.o *.d $(VENDOR_DIR)/.*-stamp
 	@$(RM) -rf $(VENDOR_OUT_DIR) $(VENDOR_SRC_DIR)
-	@$(RM) -f $(OBJS) $(DEPS) $(TEST_OBJS) $(TEST_DEPS) $(MODULE_OBJS) $(MODULE_DEPS)
 
 distclean: clean
 	@$(RM) -rf $(VENDOR_DOWNLOADS_DIR)
