@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/fs.h>
+#include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>

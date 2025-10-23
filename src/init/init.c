@@ -10,13 +10,17 @@
 #include <errno.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/hkdf.h>
+#include <mbedtls/md.h>
+#include <mbedtls/platform_util.h>
 #include <spawn.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mount.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <tdx_attest.h>
 #include <unistd.h>

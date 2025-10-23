@@ -3,13 +3,13 @@
 #include "integrity_crypt.h"
 #include "dm.h"
 #include "utils.h"
-#include <endian.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #define SECTOR_SIZE 512

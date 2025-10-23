@@ -2,6 +2,7 @@
 // Copyright 2025 Quex Technologies
 #include "ec.h"
 #include "utils.h"
+#include <mbedtls/bignum.h>
 #include <mbedtls/ecp.h>
 #include <string.h>
 

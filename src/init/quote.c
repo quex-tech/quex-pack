@@ -2,15 +2,15 @@
 // Copyright 2025 Quex Technologies
 #include "quote.h"
 #include "der.h"
-#include "ec.h"
 #include "utils.h"
 #include <inttypes.h>
-#include <mbedtls/asn1write.h>
 #include <mbedtls/constant_time.h>
 #include <mbedtls/ecdsa.h>
-#include <mbedtls/error.h>
+#include <mbedtls/md.h>
+#include <mbedtls/pk.h>
 #include <mbedtls/x509_crt.h>
 #include <sgx_quote_3.h>
+#include <sgx_report.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>

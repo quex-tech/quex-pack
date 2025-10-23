@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
 #include "report.h"
+#include "types.h"
 #include "utils.h"
+#include <sgx_quote_4.h>
 #include <sgx_quote_5.h>
+#include <sgx_report2.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 struct tee_tcb_svn_t_parsed {

@@ -3,8 +3,11 @@
 #include "der.h"
 #include "ec.h"
 #include "utils.h"
+#include <mbedtls/asn1.h>
 #include <mbedtls/asn1write.h>
-#include <mbedtls/error.h>
+#include <mbedtls/bignum.h>
+#include <mbedtls/ecdsa.h>
+#include <mbedtls/ecp.h>
 #include <mbedtls/oid.h>
 #include <stdint.h>
 #include <string.h>

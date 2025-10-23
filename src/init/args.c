@@ -5,7 +5,6 @@
 #include "mkfs.h"
 #include "mount.h"
 #include "utils.h"
-#include <stddef.h>
 #include <string.h>
 
 static int parse_arg(const char *arg, struct init_args *parsed) {

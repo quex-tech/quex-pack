@@ -6,15 +6,26 @@
 #include "report.h"
 #include "types.h"
 #include "utils.h"
-#include <arpa/inet.h>
 #include <errno.h>
+#include <mbedtls/bignum.h>
+#include <mbedtls/cipher.h>
 #include <mbedtls/constant_time.h>
 #include <mbedtls/ctr_drbg.h>
+#include <mbedtls/ecp.h>
+#include <mbedtls/entropy.h>
 #include <mbedtls/gcm.h>
 #include <mbedtls/hkdf.h>
+#include <mbedtls/md.h>
+#include <mbedtls/platform_util.h>
 #include <mbedtls/x509_crt.h>
+#include <sgx_quote_3.h>
+#include <sgx_report.h>
+#include <sgx_report2.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <tdx_attest.h>
 #include <unistd.h>
 

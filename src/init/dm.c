@@ -3,6 +3,7 @@
 #include "dm.h"
 #include "utils.h"
 #include <libdevmapper.h>
+#include <string.h>
 
 static int run_simple_task(const char *name, int type) {
 	int err = 0;

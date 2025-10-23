@@ -116,6 +116,7 @@ fuzz_quote: $(QUOTE_FUZZ_OUT)
 
 lint:
 	@clang-format --dry-run -Werror *.c *.h
+	@$(foreach s,$(SRCS) $(TEST_SRCS) $(MODULE_SRCS),include-what-you-use -Xiwyu --error=2 -Xiwyu --mapping_file=iwyu.imp $(CPPFLAGS) $(s) &&) true
 	@clang-tidy $(foreach inc,$(INCLUDES),--extra-arg=$(inc)) --warnings-as-errors=* *.c *.h
 	@cppcheck --enable=all --library=posix --inconclusive --suppress=missingIncludeSystem -q --inline-suppr --error-exitcode=2 $(SRCS) $(TEST_SRCS) $(MODULE_SRCS)
 

@@ -2,12 +2,13 @@
 // Copyright 2025 Quex Technologies
 #include "mkfs.h"
 #include "utils.h"
-#include <endian.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <spawn.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 

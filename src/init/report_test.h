@@ -2,6 +2,7 @@
 // Copyright 2025 Quex Technologies
 #include "report.h"
 #include "test.h"
+#include "types.h"
 #include "utils.h"
 #include <sgx_quote_5.h>
 #include <string.h>
