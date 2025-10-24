@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025 Quex Technologies
+
 #include "test.h"
-#include "der_test.h"
-#include "ec_test.h"
-#include "integrity_crypt_test.h"
-#include "key_test.h"
-#include "mkfs_test.h"
-#include "mount_test.h"
-#include "quote_test.h"
-#include "report_test.h"
-#include "utils_test.h"
+#include <stdio.h>
+
+int passed_count;
+int failed_count;
+
+void test_der(void);
+void test_ec(void);
+void test_integrity_crypt(void);
+void test_key(void);
+void test_mkfs(void);
+void test_mount(void);
+void test_quote(void);
+void test_report(void);
+void test_utils(void);
 
 int main(void) {
 	test_der();

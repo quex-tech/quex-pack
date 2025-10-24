@@ -3,7 +3,10 @@
 #include "quote.h"
 #include "test.h"
 #include "utils.h"
+#include <mbedtls/x509_crt.h>
 #include <sgx_quote_3.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #define INTEL_SGX_VENDOR_ID                                                                        \
@@ -11,6 +14,8 @@
 		0x93, 0x9A, 0x72, 0x33, 0xF7, 0x9C, 0x4C, 0xA9, 0x94, 0x0A, 0x0D, 0xB3, 0x95,      \
 		    0x7F, 0x06, 0x07                                                               \
 	}
+
+void test_quote(void);
 
 static void test_is_quote_header_well_formed_correct(void) {
 	uint32_t signature_data_lengths[3] = {584, 1024, 16384};
@@ -181,7 +186,7 @@ cleanup:
 	mbedtls_x509_crt_free(&root_crt);
 }
 
-static void test_quote(void) {
+void test_quote(void) {
 	test_is_quote_header_well_formed_correct();
 	test_is_quote_header_well_formed_wrong_version();
 	test_is_quote_header_well_formed_wrong_att_key_type();

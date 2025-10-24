@@ -4,9 +4,14 @@
 #include "mock_network.h"
 #include "mock_tdx.h"
 #include "test.h"
+#include "test_utils.h"
 #include "types.h"
 #include "utils.h"
+#include <stdlib.h>
 #include <string.h>
+#include <tdx_attest.h>
+
+void test_key(void);
 
 static int no_entropy(void *data, uint8_t *output, size_t len) {
 	(void)data;
@@ -17,6 +22,7 @@ static int no_entropy(void *data, uint8_t *output, size_t len) {
 static void test_get_keys(void) {
 	uint8_t *key_msg_blob = NULL;
 	uint8_t *quote_blob = NULL;
+	uint8_t *report_blob = NULL;
 	{
 		size_t key_msg_len = 0;
 		must(read_bin_file("./test_data/key_msg.dat", &key_msg_blob, &key_msg_len) == 0,
@@ -26,12 +32,23 @@ static void test_get_keys(void) {
 		must(read_bin_file("./test_data/quote.dat", &quote_blob, &quote_len) == 0,
 		     "must read quote");
 
-		if (!key_msg_blob || !quote_blob) {
+		size_t report_len = 0;
+		must(read_bin_file("./test_data/report.dat", &report_blob, &report_len) == 0,
+		     "must read report");
+
+		if (!key_msg_blob || !quote_blob || !report_blob) {
 			goto cleanup;
 		}
 
 		mock_network_send(&mock_network_incoming, key_msg_blob, key_msg_len);
 		mock_network_send(&mock_network_incoming, quote_blob, quote_len);
+
+		uint8_t fake_quote[4] = {0xAB, 0xAB, 0xAB, 0xAB};
+		set_quote(fake_quote, sizeof fake_quote);
+
+		tdx_report_t report = {0};
+		memcpy(&report, report_blob, report_len);
+		set_report(&report);
 
 		uint8_t sk[32] = {0};
 		uint8_t pk[64] = {0};
@@ -71,8 +88,9 @@ static void test_get_keys(void) {
 cleanup:
 	free(key_msg_blob);
 	free(quote_blob);
+	free(report_blob);
 	mock_network_reset(&mock_network_incoming);
 	mock_network_reset(&mock_network_outgoing);
 }
 
-static void test_key(void) { test_get_keys(); }
+void test_key(void) { test_get_keys(); }

@@ -4,12 +4,15 @@
 #include "ec.h"
 #include "test.h"
 #include "utils.h"
+#include <mbedtls/bignum.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/ecdsa.h>
 #include <mbedtls/ecp.h>
 #include <mbedtls/entropy.h>
+#include <mbedtls/md.h>
 #include <mbedtls/pk.h>
-#include <string.h>
+
+void test_der(void);
 
 static int write_raw_sig(const mbedtls_mpi *r, const mbedtls_mpi *s, uint8_t out[64]) {
 	int err;
@@ -127,7 +130,7 @@ static void test_pk_to_der(void) {
 	mbedtls_entropy_free(&entropy);
 }
 
-static void test_der(void) {
+void test_der(void) {
 	test_rs_to_der();
 	test_pk_to_der();
 }

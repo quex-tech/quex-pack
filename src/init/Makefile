@@ -49,7 +49,7 @@ OBJS := $(SRCS:.c=.o)
 DEPS := $(SRCS:.c=.d)
 OUT := init
 
-TEST_SRCS := test.c
+TEST_SRCS := test.c der_test.c ec_test.c integrity_crypt_test.c key_test.c mkfs_test.c mount_test.c quote_test.c report_test.c utils_test.c mock_tdx.c mock_network.c test_utils.c
 TEST_OBJS := $(TEST_SRCS:.c=.o)
 TEST_DEPS := $(TEST_SRCS:.c=.d)
 TEST_OUT := test.bin

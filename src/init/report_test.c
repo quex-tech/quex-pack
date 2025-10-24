@@ -3,9 +3,11 @@
 #include "report.h"
 #include "test.h"
 #include "types.h"
-#include "utils.h"
 #include <sgx_quote_5.h>
+#include <sgx_report2.h>
 #include <string.h>
+
+void test_report(void);
 
 static void test_apply_zero_mask(void) {
 	sgx_report2_t report = {0};
@@ -115,7 +117,7 @@ static void test_apply_partial_mask(void) {
 	     "Mask must modify report correctly");
 }
 
-static void test_report(void) {
+void test_report(void) {
 	test_apply_zero_mask();
 	test_apply_full_mask();
 	test_apply_partial_mask();

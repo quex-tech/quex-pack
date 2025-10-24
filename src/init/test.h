@@ -3,12 +3,10 @@
 #ifndef TEST_H
 #define TEST_H
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdio.h> // IWYU pragma: keep
 
-static int passed_count;
-static int failed_count;
+extern int passed_count;
+extern int failed_count;
 
 #define must(c, ...)                                                                               \
 	do {                                                                                       \
@@ -20,38 +18,5 @@ static int failed_count;
 			passed_count++;                                                            \
 		}                                                                                  \
 	} while (0)
-
-static int read_bin_file(const char *path, uint8_t **out, size_t *out_len) {
-	FILE *f = fopen(path, "rb");
-	if (!f) {
-		return -1;
-	}
-	if (fseek(f, 0, SEEK_END) != 0) {
-		fclose(f);
-		return -1;
-	}
-	long sz = ftell(f);
-	if (sz < 0) {
-		fclose(f);
-		return -1;
-	}
-	rewind(f);
-	uint8_t *buf = (uint8_t *)malloc((size_t)sz);
-	if (!buf) {
-		fclose(f);
-		return -1;
-	}
-	size_t n = fread(buf, 1, (size_t)sz, f);
-	fclose(f);
-	if (n != (size_t)sz) {
-		free(buf);
-		return -1;
-	}
-	*out = buf;
-	if (out_len) {
-		*out_len = (size_t)sz;
-	}
-	return 0;
-}
 
 #endif

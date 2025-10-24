@@ -4,6 +4,8 @@
 #include "utils.h"
 #include <string.h>
 
+void test_utils(void);
+
 static void test_write_hex_known_vector(void) {
 	uint8_t bytes[] = {0x00, 0x01, 0x7f, 0x80, 0xfe, 0xff};
 	char out[sizeof_array(bytes) * 2];
@@ -52,7 +54,7 @@ static void test_read_hex_invalid_char(void) {
 	     "read_hex must fail on non-hex characters");
 }
 
-static void test_utils(void) {
+void test_utils(void) {
 	test_write_hex_known_vector();
 	test_read_hex_known_vector();
 	test_hex_roundtrip();

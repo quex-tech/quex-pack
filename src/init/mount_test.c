@@ -5,6 +5,8 @@
 #include <string.h>
 #include <sys/mount.h>
 
+void test_mount(void);
+
 static void test_parse_mount_spec_basic_ok(void) {
 	char valid[] = "/dev/vda1:/mnt/data:ext4:ro,noexec,nosuid";
 	struct mount_spec spec = {0};
@@ -61,7 +63,7 @@ static void test_parse_mount_spec_invalid(void) {
 	must(parse_mount_spec(valid, NULL) == -1, "NULL output must fail");
 }
 
-static void test_mount(void) {
+void test_mount(void) {
 	test_parse_mount_spec_basic_ok();
 	test_parse_mount_spec_rw_and_flags();
 	test_parse_mount_spec_no_options();

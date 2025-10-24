@@ -4,6 +4,8 @@
 #include "test.h"
 #include <string.h>
 
+void test_integrity_crypt(void);
+
 static void test_parse_crypt_spec_ok(void) {
 	char valid[] = "/dev/vdc1:root-crypt";
 	struct crypt_spec spec = {0};
@@ -44,7 +46,7 @@ static void test_parse_integrity_spec_invalid(void) {
 	must(parse_integrity_spec(valid, NULL) == -1, "NULL output must fail");
 }
 
-static void test_integrity_crypt(void) {
+void test_integrity_crypt(void) {
 	test_parse_crypt_spec_ok();
 	test_parse_crypt_spec_invalid();
 	test_parse_integrity_spec_ok();

@@ -4,6 +4,8 @@
 #include "test.h"
 #include <string.h>
 
+void test_mkfs(void);
+
 static void test_parse_mkfs_spec_with_options(void) {
 	char valid[] = "/dev/vdb1:ext4:^64bit,quota";
 	struct mkfs_spec spec = {0};
@@ -36,7 +38,7 @@ static void test_parse_mkfs_spec_invalid(void) {
 	must(parse_mkfs_spec(valid, NULL) == -1, "NULL output must fail");
 }
 
-static void test_mkfs(void) {
+void test_mkfs(void) {
 	test_parse_mkfs_spec_with_options();
 	test_parse_mkfs_spec_without_options();
 	test_parse_mkfs_spec_invalid();

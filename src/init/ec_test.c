@@ -3,9 +3,13 @@
 #include "ec.h"
 #include "test.h"
 #include "utils.h"
+#include <mbedtls/bignum.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/ecp.h>
 #include <mbedtls/entropy.h>
+#include <stddef.h>
+
+void test_ec(void);
 
 static void test_read_write_raw_pk_roundtrip(void) {
 	mbedtls_ecp_group grp;
@@ -79,7 +83,7 @@ static void test_read_raw_sig(void) {
 	mbedtls_mpi_free(&s);
 }
 
-static void test_ec(void) {
+void test_ec(void) {
 	test_read_write_raw_pk_roundtrip();
 	test_read_raw_sig();
 	test_read_raw_sk();
