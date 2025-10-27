@@ -21,6 +21,20 @@
 #define MAPPER_NAME_MAX_LENGTH 64
 #define TABLE_MAX_LENGTH 512
 
+#define INTEGRITY_SB_U8X8_MAGIC 0
+#define INTEGRITY_SB_U8_VERSION 8
+#define INTEGRITY_SB_U8_LOG2_INTERLEAVE_SECTORS 9
+#define INTEGRITY_SB_U16LE_INTEGRITY_TAG_SIZE 10
+#define INTEGRITY_SB_U32LE_JOURNAL_SECTIONS 12
+#define INTEGRITY_SB_U64LE_PROVIDED_DATA_SECTORS 16
+#define INTEGRITY_SB_U32LE_FLAGS 24
+#define INTEGRITY_SB_U8_LOG2_SECTORS_PER_BLOCK 28
+#define INTEGRITY_SB_U8_LOG2_BLOCKS_PER_BITMAP_BIT 29
+#define INTEGRITY_SB_U8X2_PAD 30
+#define INTEGRITY_SB_U64LE_RECALC_SECTOR 32
+#define INTEGRITY_SB_U8X8_PAD2 40
+#define INTEGRITY_SB_U8X16_SALT 48
+
 struct superblock {
 	uint8_t magic[8];
 	uint8_t version;
@@ -38,19 +52,19 @@ struct superblock {
 };
 
 static void parse_superblock(const uint8_t buf[SUPERBLOCK_SIZE], struct superblock *sb) {
-	memcpy(sb->magic, buf, 8);
-	sb->version = buf[8];
-	sb->log2_interleave_sectors = buf[9];
-	sb->integrity_tag_size = read_le16(buf + 10);
-	sb->journal_sections = read_le32(buf + 12);
-	sb->provided_data_sectors = read_le64(buf + 16);
-	sb->flags = read_le32(buf + 24);
-	sb->log2_sectors_per_block = buf[28];
-	sb->log2_blocks_per_bitmap_bit = buf[29];
-	memcpy(sb->pad, buf + 30, 2);
-	sb->recalc_sector = read_le64(buf + 32);
-	memcpy(sb->pad2, buf + 40, 8);
-	memcpy(sb->salt, buf + 48, 16);
+	memcpy(sb->magic, buf + INTEGRITY_SB_U8X8_MAGIC, sizeof sb->magic);
+	sb->version = buf[INTEGRITY_SB_U8_VERSION];
+	sb->log2_interleave_sectors = buf[INTEGRITY_SB_U8_LOG2_INTERLEAVE_SECTORS];
+	sb->integrity_tag_size = read_u16le(buf + INTEGRITY_SB_U16LE_INTEGRITY_TAG_SIZE);
+	sb->journal_sections = read_u32le(buf + INTEGRITY_SB_U32LE_JOURNAL_SECTIONS);
+	sb->provided_data_sectors = read_u64le(buf + INTEGRITY_SB_U64LE_PROVIDED_DATA_SECTORS);
+	sb->flags = read_u32le(buf + INTEGRITY_SB_U32LE_FLAGS);
+	sb->log2_sectors_per_block = buf[INTEGRITY_SB_U8_LOG2_SECTORS_PER_BLOCK];
+	sb->log2_blocks_per_bitmap_bit = buf[INTEGRITY_SB_U8_LOG2_BLOCKS_PER_BITMAP_BIT];
+	memcpy(sb->pad, buf + INTEGRITY_SB_U8X2_PAD, sizeof sb->pad);
+	sb->recalc_sector = read_u64le(buf + INTEGRITY_SB_U64LE_RECALC_SECTOR);
+	memcpy(sb->pad2, buf + INTEGRITY_SB_U8X8_PAD2, sizeof sb->pad2);
+	memcpy(sb->salt, buf + INTEGRITY_SB_U8X16_SALT, sizeof sb->salt);
 }
 
 static const struct superblock integrity_only_expected_sb = {.magic = "integrt",

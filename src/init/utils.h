@@ -5,7 +5,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
 #ifdef ENABLE_TRACE
 #include <stdio.h>
@@ -25,34 +24,19 @@ int replace_in_file(const char *path, const char *target, const char *replacemen
 int copy_file(const char *src_path, const char *dst_path);
 int zeroize_device(const char *dev_path, uint64_t len);
 
-static inline uint16_t read_le16(const void *p) {
-	uint16_t v;
-	memcpy(&v, p, sizeof v);
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-	return v;
-#else
-	return __builtin_bswap16(v);
-#endif
+static inline uint16_t read_u16le(const uint8_t *buf) {
+	return (uint16_t)((uint16_t)buf[1] << 8) | (uint16_t)((uint16_t)buf[0] << 0);
 }
 
-static inline uint32_t read_le32(const void *p) {
-	uint32_t v;
-	memcpy(&v, p, sizeof v);
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-	return v;
-#else
-	return __builtin_bswap32(v);
-#endif
+static inline uint32_t read_u32le(const uint8_t *buf) {
+	return (uint32_t)buf[3] << 24 | (uint32_t)buf[2] << 16 | (uint32_t)buf[1] << 8 |
+	       (uint32_t)buf[0] << 0;
 }
 
-static inline uint64_t read_le64(const void *p) {
-	uint64_t v;
-	memcpy(&v, p, sizeof v);
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-	return v;
-#else
-	return __builtin_bswap64(v);
-#endif
+static inline uint64_t read_u64le(const uint8_t *buf) {
+	return (uint64_t)buf[7] << 56 | (uint64_t)buf[6] << 48 | (uint64_t)buf[5] << 40 |
+	       (uint64_t)buf[4] << 32 | (uint64_t)buf[3] << 24 | (uint64_t)buf[2] << 16 |
+	       (uint64_t)buf[1] << 8 | (uint64_t)buf[0] << 0;
 }
 
 #endif

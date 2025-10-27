@@ -14,13 +14,14 @@
 
 #define EXT4_SUPERBLOCK_OFFSET 1024
 #define EXT4_SUPERBLOCK_SIZE 1024
+#define EXT4_SUPERBLOCK_U16LE_MAGIC 56
 
 struct superblock {
 	uint16_t magic;
 };
 
 static void parse_superblock(const uint8_t buf[EXT4_SUPERBLOCK_SIZE], struct superblock *out_sb) {
-	out_sb->magic = read_le16(buf + 0x38);
+	out_sb->magic = read_u16le(buf + EXT4_SUPERBLOCK_U16LE_MAGIC);
 }
 
 static int get_superblock(const char *dev_path, struct superblock *out_sb) {
