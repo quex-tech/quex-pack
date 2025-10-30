@@ -9,6 +9,6 @@
 #include <stddef.h>
 
 bool is_quote_header_well_formed(const sgx_quote3_t *quote);
-int verify_quote(const sgx_quote3_t *quote, size_t quote_len, mbedtls_x509_crt *root_crt);
+int verify_quote(const sgx_quote3_t *quote, ptrdiff_t quote_len, mbedtls_x509_crt *root_crt);
 
 #endif

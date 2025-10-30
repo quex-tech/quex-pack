@@ -31,11 +31,7 @@ static void test_parse_mkfs_spec_invalid(void) {
 	struct mkfs_spec spec = {0};
 	char no_fstype[] = "/dev/vdb1";
 
-	must(parse_mkfs_spec(NULL, &spec) == -1, "NULL input must fail");
 	must(parse_mkfs_spec(no_fstype, &spec) == -1, "missing fstype must fail");
-
-	char valid[] = "/dev/vdb1:ext4";
-	must(parse_mkfs_spec(valid, NULL) == -1, "NULL output must fail");
 }
 
 void test_mkfs(void) {

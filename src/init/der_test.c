@@ -73,7 +73,7 @@ static void test_rs_to_der(void) {
 	must(write_raw_sig(&r, &s, raw_sig) == 0, "write_raw_sig must succeed");
 
 	uint8_t sig_der[128];
-	size_t sig_der_len = 0;
+	ptrdiff_t sig_der_len = 0;
 	must(rs_to_der(raw_sig, sig_der, sizeof sig_der, &sig_der_len) == 0,
 	     "rs_to_der must succeed");
 	must(sig_der_len > 0, "sig_der_len must be > 0");
@@ -113,13 +113,13 @@ static void test_pk_to_der(void) {
 	must(write_raw_pk(&grp, &pk, raw_pk) == 0, "write_raw_pk must succeed");
 
 	uint8_t pk_der[128] = {0};
-	size_t pk_der_len = 0;
+	ptrdiff_t pk_der_len = 0;
 	must(pk_to_der(raw_pk, pk_der, sizeof pk_der, &pk_der_len) == 0, "pk_to_der must succeed");
 	must(pk_der_len > 0, "pk_der_len must be > 0");
 
 	mbedtls_pk_context pk_ctx;
 	mbedtls_pk_init(&pk_ctx);
-	must(mbedtls_pk_parse_public_key(&pk_ctx, pk_der, pk_der_len) == 0,
+	must(mbedtls_pk_parse_public_key(&pk_ctx, pk_der, (size_t)pk_der_len) == 0,
 	     "mbedtls_pk_parse_public_key must succeed");
 
 	mbedtls_pk_free(&pk_ctx);

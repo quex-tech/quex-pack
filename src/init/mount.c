@@ -52,10 +52,6 @@ static unsigned long parse_mount_flags(const char *options_str) {
 }
 
 int parse_mount_spec(char *input, struct mount_spec *out_spec) {
-	if (!input || !out_spec) {
-		return -1;
-	}
-
 	char *saveptr;
 	char *source = strtok_r(input, ":", &saveptr);
 	char *target = strtok_r(NULL, ":", &saveptr);

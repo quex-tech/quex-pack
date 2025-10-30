@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int read_bin_file(const char *path, uint8_t **out, size_t *out_len) {
+int read_bin_file(const char *path, uint8_t **out, ptrdiff_t *out_len) {
 	FILE *f = fopen(path, "rb");
 	if (!f) {
 		return -1;
@@ -30,7 +30,7 @@ int read_bin_file(const char *path, uint8_t **out, size_t *out_len) {
 	}
 	*out = buf;
 	if (out_len) {
-		*out_len = (size_t)sz;
+		*out_len = sz;
 	}
 	return 0;
 }

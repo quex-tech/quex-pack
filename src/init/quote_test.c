@@ -99,7 +99,7 @@ static void test_is_quote_header_well_formed_wrong_signature_data_len(void) {
 	}
 }
 
-static sgx_quote3_t *read_quote(const char *filename, size_t *size_out) {
+static sgx_quote3_t *read_quote(const char *filename, ptrdiff_t *size_out) {
 	FILE *f = fopen(filename, "rb");
 	if (!f) {
 		perror("fopen");
@@ -119,8 +119,9 @@ static sgx_quote3_t *read_quote(const char *filename, size_t *size_out) {
 		return NULL;
 	}
 
-	size_t size = (size_t)pos;
 	rewind(f);
+
+	size_t size = (size_t)pos;
 
 	sgx_quote3_t *buffer = (sgx_quote3_t *)malloc(size);
 	if (!buffer) {
@@ -130,7 +131,7 @@ static sgx_quote3_t *read_quote(const char *filename, size_t *size_out) {
 	}
 
 	size_t read = fread(buffer, 1, size, f);
-	if (read != (size_t)size) {
+	if (read != size) {
 		perror("fread");
 		free(buffer);
 		fclose(f);
@@ -140,14 +141,14 @@ static sgx_quote3_t *read_quote(const char *filename, size_t *size_out) {
 	fclose(f);
 
 	if (size_out) {
-		*size_out = (size_t)size;
+		*size_out = pos;
 	}
 
 	return buffer;
 }
 
 static void test_verify_quote_valid(void) {
-	size_t quote_len;
+	ptrdiff_t quote_len;
 	sgx_quote3_t *quote = read_quote("./test_data/quote.dat", &quote_len);
 	must(quote, "Could not read quote");
 

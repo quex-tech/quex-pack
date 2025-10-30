@@ -2,12 +2,13 @@
 // Copyright 2025 Quex Technologies
 #include "utils.h"
 #include <arpa/inet.h>
-#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/fs.h>
 #include <netinet/in.h>
 #include <signal.h>
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,37 +51,84 @@ int init_socket(uint16_t port) {
 	return sock;
 }
 
-void write_hex(const uint8_t *bytes, size_t bytes_len, char *out_hex) {
-	for (size_t i = 0; i < bytes_len; i++) {
-		snprintf(out_hex + i * 2, 3, "%02x", bytes[i]);
+void write_hex(const uint8_t *bytes, ptrdiff_t bytes_len, char *out_hex, ptrdiff_t hex_len) {
+	if (bytes_len < 0 || bytes_len > (PTRDIFF_MAX - 1) / 2 || hex_len != bytes_len * 2 + 1) {
+		return;
 	}
+
+	static const char hexdigits[] = "0123456789abcdef";
+
+	for (ptrdiff_t i = 0; i < bytes_len; i++) {
+		out_hex[i * 2] = hexdigits[bytes[i] >> 4];
+		out_hex[i * 2 + 1] = hexdigits[bytes[i] & 0xf];
+	}
+
+	out_hex[hex_len - 1] = '\0';
 }
 
-int write_hex_to_file(const char *path, const uint8_t *bytes, size_t bytes_len) {
-	FILE *file = fopen(path, "w");
+int write_hex_to_file(const char *path, const uint8_t *bytes, ptrdiff_t bytes_len) {
+	if (bytes_len < 0 || bytes_len > (PTRDIFF_MAX - 1) / 2) {
+		return -1;
+	}
+
+	FILE *file = fopen(path, "wb");
 	if (!file) {
 		return -1;
 	}
 
-	char *hex_str = (char *)malloc(bytes_len * 2 + 1);
+	ptrdiff_t hex_len = bytes_len * 2 + 1;
+	char *hex_str = (char *)malloc((size_t)hex_len);
 	if (!hex_str) {
 		fclose(file);
 		return -2;
 	}
 
-	write_hex(bytes, bytes_len, hex_str);
-	hex_str[bytes_len * 2] = '\0';
+	write_hex(bytes, bytes_len, hex_str, hex_len);
 
-	fprintf(file, "%s", hex_str);
+	if (fprintf(file, "%s", hex_str) < 0) {
+		free(hex_str);
+		fclose(file);
+		return -1;
+	}
 
 	free(hex_str);
 	fclose(file);
 	return 0;
 }
 
-int read_hex(const char *hex, uint8_t *out_bytes, size_t bytes_len) {
-	size_t hex_len = 0;
-	while (isxdigit(hex[hex_len])) {
+static uint8_t hex_to_lo_nibble(unsigned char c) {
+	if (c >= '0' && c <= '9') {
+		return c - '0';
+	}
+	if (c >= 'a' && c <= 'f') {
+		return c - 'a' + 10;
+	}
+	if (c >= 'A' && c <= 'F') {
+		return c - 'A' + 10;
+	}
+	return 0;
+}
+
+static uint8_t hex_to_hi_nibble(unsigned char c) { return hex_to_lo_nibble(c) << 4; }
+
+static uint8_t hex_to_byte(const char *str) {
+	return hex_to_hi_nibble((unsigned char)str[0]) | hex_to_lo_nibble((unsigned char)str[1]);
+}
+
+static bool char_is_hex_digit(unsigned char c) {
+	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+int read_hex(const char *hex, uint8_t *out_bytes, ptrdiff_t bytes_len) {
+	if (bytes_len < 0 || bytes_len > PTRDIFF_MAX / 2) {
+		return -1;
+	}
+
+	ptrdiff_t hex_len = 0;
+	while (char_is_hex_digit((unsigned char)hex[hex_len])) {
+		if (hex_len == PTRDIFF_MAX) {
+			return -1;
+		}
 		hex_len++;
 	}
 
@@ -88,10 +136,8 @@ int read_hex(const char *hex, uint8_t *out_bytes, size_t bytes_len) {
 		return -1;
 	}
 
-	for (size_t i = 0; i < bytes_len; i++) {
-		if (sscanf(hex + i * 2, "%2hhx", &out_bytes[i]) != 1) {
-			return -1;
-		}
+	for (ptrdiff_t i = 0; i < bytes_len; i++) {
+		out_bytes[i] = hex_to_byte(hex + i * 2);
 	}
 
 	return 0;
@@ -153,7 +199,7 @@ int copy_file(const char *src_path, const char *dst_path) {
 	int ret = -1;
 	FILE *source = NULL;
 	FILE *dest = NULL;
-	char buf[8192];
+	char buf[8192] = {0};
 	size_t nread;
 
 	source = fopen(src_path, "rb");
@@ -205,7 +251,7 @@ int zeroize_device(const char *dev_path, uint64_t len) {
 		uint64_t range[2] = {0, len};
 		if (ioctl(fd, BLKZEROOUT, range) == -1) {
 			err = -errno;
-			trace("ioctl(BLKZEROOT) %s failed: %s\n", dev_path, strerror(errno));
+			trace("ioctl(BLKZEROOUT) %s failed: %s\n", dev_path, strerror(errno));
 			goto cleanup;
 		}
 
@@ -219,4 +265,17 @@ cleanup:
 		close(fd);
 	}
 	return err;
+}
+
+int snprintf_checked(char *str, ptrdiff_t size, const char *format, ...) {
+	va_list args;
+	va_start(args, format);
+	int n = vsnprintf(str, (size_t)size, format, args);
+	va_end(args);
+
+	if (n < 0 || n >= size) {
+		return -1;
+	}
+
+	return 0;
 }

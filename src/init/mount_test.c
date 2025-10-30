@@ -54,13 +54,9 @@ static void test_parse_mount_spec_invalid(void) {
 	char no_target[] = "src::ext4";
 	char no_source[] = ":dst:ext4";
 
-	must(parse_mount_spec(NULL, &spec) == -1, "NULL input must fail");
 	must(parse_mount_spec(no_fstype, &spec) == -1, "missing fstype must fail");
 	must(parse_mount_spec(no_target, &spec) == -1, "missing target must fail");
 	must(parse_mount_spec(no_source, &spec) == -1, "missing source must fail");
-
-	char valid[] = "src:dst:ext4";
-	must(parse_mount_spec(valid, NULL) == -1, "NULL output must fail");
 }
 
 void test_mount(void) {

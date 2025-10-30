@@ -16,46 +16,51 @@
 // Copyright The Mbed TLS Contributors
 // SPDX-License-Identifier: Apache-2.0
 static int rs_to_der_inner(const mbedtls_mpi *r, const mbedtls_mpi *s, uint8_t *out_der,
-                           size_t max_der_len, size_t *out_der_len) {
+                           ptrdiff_t max_der_len, ptrdiff_t *out_der_len) {
 	uint8_t buf[MBEDTLS_ECDSA_MAX_LEN] = {0};
 	uint8_t *p = buf + sizeof buf;
-	size_t len = 0;
+	ptrdiff_t len = 0;
 
 	int ret = mbedtls_asn1_write_mpi(&p, buf, s);
 	if (ret < 0) {
 		return ret;
 	}
-	len += (size_t)ret;
+	len += ret;
 
 	ret = mbedtls_asn1_write_mpi(&p, buf, r);
 	if (ret < 0) {
 		return ret;
 	}
-	len += (size_t)ret;
+	len += ret;
 
-	ret = mbedtls_asn1_write_len(&p, buf, len);
+	ret = mbedtls_asn1_write_len(&p, buf, (size_t)len);
 	if (ret < 0) {
 		return ret;
 	}
-	len += (size_t)ret;
+	len += ret;
 
 	ret = mbedtls_asn1_write_tag(&p, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
 	if (ret < 0) {
 		return ret;
 	}
-	len += (size_t)ret;
+	len += ret;
 
 	if (len > max_der_len) {
 		return MBEDTLS_ERR_ECP_BUFFER_TOO_SMALL;
 	}
 
-	memcpy(out_der, p, len);
+	memcpy(out_der, p, (size_t)len);
 	*out_der_len = len;
 
 	return 0;
 }
 
-int rs_to_der(const uint8_t rs[64], uint8_t *out_der, size_t max_der_len, size_t *out_der_len) {
+int rs_to_der(const uint8_t rs[64], uint8_t *out_der, ptrdiff_t max_der_len,
+              ptrdiff_t *out_der_len) {
+	if (max_der_len <= 0) {
+		return -1;
+	}
+
 	int ret = 0;
 	mbedtls_mpi r;
 	mbedtls_mpi s;
@@ -81,10 +86,15 @@ int rs_to_der(const uint8_t rs[64], uint8_t *out_der, size_t max_der_len, size_t
 	return ret;
 }
 
-int pk_to_der(const uint8_t pk[64], uint8_t *out_der, size_t max_der_len, size_t *out_der_len) {
+int pk_to_der(const uint8_t pk[64], uint8_t *out_der, ptrdiff_t max_der_len,
+              ptrdiff_t *out_der_len) {
+	if (max_der_len <= 0) {
+		return -1;
+	}
+
 	uint8_t *p = out_der + max_der_len;
-	size_t len = 0;
-	size_t len_alg = 0;
+	ptrdiff_t len = 0;
+	ptrdiff_t len_alg = 0;
 	uint8_t point[65] = {[0] = 0x04};
 	memcpy(point + 1, pk, 64);
 
@@ -92,53 +102,53 @@ int pk_to_der(const uint8_t pk[64], uint8_t *out_der, size_t max_der_len, size_t
 	if (ret < 0) {
 		return ret;
 	}
-	len += (size_t)ret;
+	len += ret;
 
 	ret = mbedtls_asn1_write_oid(&p, out_der, MBEDTLS_OID_EC_GRP_SECP256R1,
 	                             MBEDTLS_OID_SIZE(MBEDTLS_OID_EC_GRP_SECP256R1));
 	if (ret < 0) {
 		return ret;
 	}
-	len_alg += (size_t)ret;
+	len_alg += ret;
 
 	ret = mbedtls_asn1_write_oid(&p, out_der, MBEDTLS_OID_EC_ALG_UNRESTRICTED,
 	                             MBEDTLS_OID_SIZE(MBEDTLS_OID_EC_ALG_UNRESTRICTED));
 	if (ret < 0) {
 		return ret;
 	}
-	len_alg += (size_t)ret;
+	len_alg += ret;
 
-	ret = mbedtls_asn1_write_len(&p, out_der, len_alg);
+	ret = mbedtls_asn1_write_len(&p, out_der, (size_t)len_alg);
 	if (ret < 0) {
 		return ret;
 	}
-	len_alg += (size_t)ret;
+	len_alg += ret;
 
 	ret = mbedtls_asn1_write_tag(&p, out_der, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
 	if (ret < 0) {
 		return ret;
 	}
-	len_alg += (size_t)ret;
+	len_alg += ret;
 
 	len += len_alg;
 
-	ret = mbedtls_asn1_write_len(&p, out_der, len);
+	ret = mbedtls_asn1_write_len(&p, out_der, (size_t)len);
 	if (ret < 0) {
 		return ret;
 	}
-	len += (size_t)ret;
+	len += ret;
 
 	ret = mbedtls_asn1_write_tag(&p, out_der, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
 	if (ret < 0) {
 		return ret;
 	}
-	len += (size_t)ret;
+	len += ret;
 
 	if (len > max_der_len) {
 		return MBEDTLS_ERR_ECP_BUFFER_TOO_SMALL;
 	}
 
-	memmove(out_der, p, len);
+	memmove(out_der, p, (size_t)len);
 	*out_der_len = len;
 
 	return 0;

@@ -88,14 +88,18 @@ struct parsed_quote {
 	const uint8_t *crt_data;
 };
 
-static int parse_quote(const sgx_quote3_t *quote, size_t quote_len,
+static int parse_quote(const sgx_quote3_t *quote, ptrdiff_t quote_len,
                        struct parsed_quote *out_quote) {
+	if (quote_len < 0 || (size_t)quote_len < sizeof *quote) {
+		return -1;
+	}
+
 	if (!is_quote_header_well_formed(quote)) {
 		trace("Quote header is ill-formed\n");
 		return -1;
 	}
 
-	if (quote_len != sizeof(sgx_quote3_t) + quote->signature_data_len) {
+	if ((size_t)quote_len != sizeof *quote + quote->signature_data_len) {
 		trace("Quote signature_data_len is wrong\n");
 		return -1;
 	}
@@ -149,7 +153,7 @@ static int verify_sig(mbedtls_pk_context *pk, const uint8_t sig[64], const uint8
                       size_t msg_len) {
 	trace("Verifying a signature...\n");
 	uint8_t sig_der[MBEDTLS_ECDSA_MAX_LEN] = {0};
-	size_t sig_der_len = MBEDTLS_ECDSA_MAX_LEN;
+	ptrdiff_t sig_der_len = MBEDTLS_ECDSA_MAX_LEN;
 	uint8_t hash[32] = {0};
 	bool signature_is_valid = true;
 
@@ -159,14 +163,14 @@ static int verify_sig(mbedtls_pk_context *pk, const uint8_t sig[64], const uint8
 		signature_is_valid = false;
 	}
 
-	err = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const uint8_t *)msg,
-	                 msg_len, hash);
+	err = mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), msg, msg_len, hash);
 	if (err) {
 		trace("mbedtls_md failed: %d\n", err);
 		signature_is_valid = false;
 	}
 
-	err = mbedtls_pk_verify(pk, MBEDTLS_MD_SHA256, hash, sizeof hash, sig_der, sig_der_len);
+	err = mbedtls_pk_verify(pk, MBEDTLS_MD_SHA256, hash, sizeof hash, sig_der,
+	                        (size_t)sig_der_len);
 	if (err) {
 		trace("Invalid signature: %d\n", err);
 		signature_is_valid = false;
@@ -229,7 +233,7 @@ static int verify_qe_report_sig(const struct parsed_quote *quote, mbedtls_x509_c
 
 	err = verify_sig(&pck_crt.pk, quote->sig_data_header.qe_report_sig,
 	                 (const uint8_t *)&quote->sig_data_header.qe_report,
-	                 sizeof(sgx_report_body_t));
+	                 sizeof quote->sig_data_header.qe_report);
 	if (err) {
 		trace("Invalid QE report signature: %d\n", err);
 		signature_is_valid = false;
@@ -286,7 +290,7 @@ static int verify_quote_sig(const struct parsed_quote *quote) {
 	trace("Verifying quote signature...\n");
 
 	uint8_t pk_der[128] = {0};
-	size_t pk_der_len = sizeof pk_der;
+	ptrdiff_t pk_der_len = sizeof pk_der;
 	mbedtls_pk_context pk;
 	mbedtls_pk_init(&pk);
 
@@ -299,7 +303,7 @@ static int verify_quote_sig(const struct parsed_quote *quote) {
 		signature_is_valid = false;
 	}
 
-	err = mbedtls_pk_parse_public_key(&pk, pk_der, pk_der_len);
+	err = mbedtls_pk_parse_public_key(&pk, pk_der, (size_t)pk_der_len);
 	if (err) {
 		trace("mbedtls_pk_parse_public_key failed: %d\n", err);
 		signature_is_valid = false;
@@ -319,7 +323,7 @@ static int verify_quote_sig(const struct parsed_quote *quote) {
 	return signature_is_valid ? 0 : -1;
 }
 
-int verify_quote(const sgx_quote3_t *quote, size_t quote_len, mbedtls_x509_crt *root_crt) {
+int verify_quote(const sgx_quote3_t *quote, ptrdiff_t quote_len, mbedtls_x509_crt *root_crt) {
 	trace("Verifying quote...\n");
 
 	struct parsed_quote parsed = {0};

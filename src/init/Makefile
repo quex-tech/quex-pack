@@ -100,7 +100,7 @@ ARGS_FUZZ_SRCS := args_fuzz.c
 ARGS_FUZZ_OUT := fuzz_args.bin
 
 $(ARGS_FUZZ_OUT): $(ARGS_FUZZ_SRCS) $(MODULE_SRCS)
-	$(FUZZ_CC) $(FUZZ_CFLAGS) $(CPPFLAGS) $(ARGS_FUZZ_SRCS) $(MODULE_SRCS) $(LDFLAGS) $(LDLIBS) -o $@
+	@$(FUZZ_CC) $(FUZZ_CFLAGS) $(CPPFLAGS) $(ARGS_FUZZ_SRCS) $(MODULE_SRCS) $(LDFLAGS) $(LDLIBS) -o $@
 
 fuzz_args: $(ARGS_FUZZ_OUT)
 	@LD_LIBRARY_PATH=$(LIBPATHS) ./$(ARGS_FUZZ_OUT) -max_len=6000 -dict=./args_fuzz.dict $(FUZZ_ARGS) ./args_fuzz_seeds/

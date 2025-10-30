@@ -123,10 +123,6 @@ cleanup:
 }
 
 int parse_mkfs_spec(char *input, struct mkfs_spec *out_spec) {
-	if (!input || !out_spec) {
-		return -1;
-	}
-
 	char *saveptr;
 	char *dev = strtok_r(input, ":", &saveptr);
 	char *fstype = strtok_r(NULL, ":", &saveptr);

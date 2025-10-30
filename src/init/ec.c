@@ -25,7 +25,7 @@ int write_raw_pk(const mbedtls_ecp_group *grp, const mbedtls_ecp_point *pk, uint
 
 #ifdef ENABLE_TRACE
 	char pk_hex[129] = {0};
-	write_hex(out, 64, pk_hex);
+	write_hex(out, 64, pk_hex, sizeof pk_hex);
 	trace("PK: %s\n", pk_hex);
 #endif
 

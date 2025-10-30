@@ -1,3 +1,4 @@
 [
-  { include: ["<bits/socket-constants.h>", "private", "<sys/socket.h>", "public"] }
+  { include: ["<bits/socket-constants.h>", "private", "<sys/socket.h>", "public"] },
+  { include: ["<__stdarg_va_arg.h>", "private", "<stdarg.h>", "public"] },
 ]

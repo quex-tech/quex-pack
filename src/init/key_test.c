@@ -24,15 +24,15 @@ static void test_get_keys(void) {
 	uint8_t *quote_blob = NULL;
 	uint8_t *report_blob = NULL;
 	{
-		size_t key_msg_len = 0;
+		ptrdiff_t key_msg_len = 0;
 		must(read_bin_file("./test_data/key_msg.dat", &key_msg_blob, &key_msg_len) == 0,
 		     "must read key_msg");
 
-		size_t quote_len = 0;
+		ptrdiff_t quote_len = 0;
 		must(read_bin_file("./test_data/quote.dat", &quote_blob, &quote_len) == 0,
 		     "must read quote");
 
-		size_t report_len = 0;
+		ptrdiff_t report_len = 0;
 		must(read_bin_file("./test_data/report.dat", &report_blob, &report_len) == 0,
 		     "must read report");
 
@@ -40,14 +40,14 @@ static void test_get_keys(void) {
 			goto cleanup;
 		}
 
-		mock_network_send(&mock_network_incoming, key_msg_blob, key_msg_len);
-		mock_network_send(&mock_network_incoming, quote_blob, quote_len);
+		mock_network_send(&mock_network_incoming, key_msg_blob, (size_t)key_msg_len);
+		mock_network_send(&mock_network_incoming, quote_blob, (size_t)quote_len);
 
 		uint8_t fake_quote[4] = {0xAB, 0xAB, 0xAB, 0xAB};
 		set_quote(fake_quote, sizeof fake_quote);
 
 		tdx_report_t report = {0};
-		memcpy(&report, report_blob, report_len);
+		memcpy(&report, report_blob, (size_t)report_len);
 		set_report(&report);
 
 		uint8_t sk[32] = {0};
@@ -60,13 +60,13 @@ static void test_get_keys(void) {
 		must(err == 0, "get_keys must succeed");
 
 		char sk_hex[2 * sizeof sk + 1] = {0};
-		write_hex(sk, sizeof sk, sk_hex);
+		write_hex(sk, sizeof sk, sk_hex, sizeof sk_hex);
 		must(strcmp(sk_hex, "1ce6ca8f269a7b09defe608e1cd92959"
 		                    "f752be0c9dd1cd5424e783d8c4f7d1ab") == 0,
 		     "sk must be expected");
 
 		char pk_hex[2 * sizeof pk + 1] = {0};
-		write_hex(pk, sizeof pk, pk_hex);
+		write_hex(pk, sizeof pk, pk_hex, sizeof pk_hex);
 		must(strcmp(pk_hex, "9f4681953cb9b53e1a6c90f3e64b5f38"
 		                    "41aff3376051168a70bc9500fcf495ec"
 		                    "079df19bde642a7a5692ca20a80eaad0"
@@ -81,7 +81,8 @@ static void test_get_keys(void) {
 		uint8_t key_request_mask[sizeof key_request.mask] = {0};
 		memcpy(key_request_mask, &key_request.mask, sizeof key_request.mask);
 		char key_request_mask_hex[2 * sizeof key_request.mask + 1] = {0};
-		write_hex(key_request_mask, sizeof key_request_mask, key_request_mask_hex);
+		write_hex(key_request_mask, sizeof key_request_mask, key_request_mask_hex,
+		          sizeof key_request_mask_hex);
 
 		must(strcmp(key_request_mask_hex, "04030000c70000") == 0, "must send correct mask");
 	}

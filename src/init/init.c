@@ -13,8 +13,8 @@
 #include <mbedtls/md.h>
 #include <mbedtls/platform_util.h>
 #include <spawn.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mount.h>
@@ -43,8 +43,13 @@ static int handle_integrity(const uint8_t *prk, size_t prk_len, const mbedtls_md
 	uint8_t integrity_journal_crypt_sk[32] = {0};
 	{
 		char integrity_sk_info[512] = {0};
-		snprintf(integrity_sk_info, sizeof integrity_sk_info, "integrity:%s:%s:mac",
-		         spec.dev, spec.name);
+		err = snprintf_checked(integrity_sk_info, sizeof integrity_sk_info,
+		                       "integrity:%s:%s:mac", spec.dev, spec.name);
+		if (err) {
+			trace("Could not write integrity_sk_info\n");
+			goto cleanup;
+		}
+
 		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)integrity_sk_info,
 		                          sizeof integrity_sk_info, integrity_sk,
 		                          sizeof integrity_sk);
@@ -54,8 +59,14 @@ static int handle_integrity(const uint8_t *prk, size_t prk_len, const mbedtls_md
 		}
 
 		char integrity_journal_crypt_sk_info[512] = {0};
-		snprintf(integrity_journal_crypt_sk_info, sizeof integrity_journal_crypt_sk_info,
-		         "integrity:%s:%s:journal_crypt", spec.dev, spec.name);
+		err = snprintf_checked(integrity_journal_crypt_sk_info,
+		                       sizeof integrity_journal_crypt_sk_info,
+		                       "integrity:%s:%s:journal_crypt", spec.dev, spec.name);
+		if (err) {
+			trace("Could not write integrity_journal_crypt_sk_info\n");
+			goto cleanup;
+		}
+
 		err = mbedtls_hkdf_expand(
 		    md, prk, prk_len, (uint8_t *)integrity_journal_crypt_sk_info,
 		    sizeof integrity_journal_crypt_sk_info, integrity_journal_crypt_sk,
@@ -86,7 +97,13 @@ static int handle_crypt(const uint8_t *prk, size_t prk_len, const mbedtls_md_inf
 	uint8_t crypt_journal_mac_sk[32] = {0};
 	{
 		char crypt_sk_info[512] = {0};
-		snprintf(crypt_sk_info, sizeof crypt_sk_info, "crypt=%s:%s", spec.dev, spec.name);
+		err = snprintf_checked(crypt_sk_info, sizeof crypt_sk_info, "crypt=%s:%s", spec.dev,
+		                       spec.name);
+		if (err) {
+			trace("Could not write crypt_sk_info\n");
+			goto cleanup;
+		}
+
 		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_sk_info,
 		                          strlen(crypt_sk_info), crypt_sk, sizeof crypt_sk);
 		if (err) {
@@ -95,8 +112,14 @@ static int handle_crypt(const uint8_t *prk, size_t prk_len, const mbedtls_md_inf
 		}
 
 		char crypt_journal_crypt_sk_info[512] = {0};
-		snprintf(crypt_journal_crypt_sk_info, sizeof crypt_journal_crypt_sk_info,
-		         "crypt:%s:%s:journal_crypt", spec.dev, spec.name);
+		err = snprintf_checked(crypt_journal_crypt_sk_info,
+		                       sizeof crypt_journal_crypt_sk_info,
+		                       "crypt:%s:%s:journal_crypt", spec.dev, spec.name);
+		if (err) {
+			trace("Could not write crypt_journal_crypt_sk_info\n");
+			goto cleanup;
+		}
+
 		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_journal_crypt_sk_info,
 		                          strlen(crypt_journal_crypt_sk_info),
 		                          crypt_journal_crypt_sk, sizeof crypt_journal_crypt_sk);
@@ -106,8 +129,13 @@ static int handle_crypt(const uint8_t *prk, size_t prk_len, const mbedtls_md_inf
 		}
 
 		char crypt_journal_mac_sk_info[512] = {0};
-		snprintf(crypt_journal_mac_sk_info, sizeof crypt_journal_mac_sk_info,
-		         "crypt:%s:%s:journal_mac", spec.dev, spec.name);
+		err = snprintf_checked(crypt_journal_mac_sk_info, sizeof crypt_journal_mac_sk_info,
+		                       "crypt:%s:%s:journal_mac", spec.dev, spec.name);
+		if (err) {
+			trace("Could not write crypt_journal_mac_sk_info\n");
+			goto cleanup;
+		}
+
 		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_journal_mac_sk_info,
 		                          strlen(crypt_journal_mac_sk_info), crypt_journal_mac_sk,
 		                          sizeof crypt_journal_mac_sk);
@@ -270,7 +298,7 @@ static int init(int argc, char *argv[]) {
 			goto cleanup;
 		}
 
-		for (size_t i = 0; i < parameters.integrity_specs_len; i++) {
+		for (ptrdiff_t i = 0; i < parameters.integrity_specs_len; i++) {
 			err = handle_integrity(prk, prk_len, md, parameters.integrity_specs[i]);
 			if (err) {
 				trace("handle_integrity failed: %d\n", err);
@@ -278,7 +306,7 @@ static int init(int argc, char *argv[]) {
 			}
 		}
 
-		for (size_t i = 0; i < parameters.crypt_specs_len; i++) {
+		for (ptrdiff_t i = 0; i < parameters.crypt_specs_len; i++) {
 			err = handle_crypt(prk, prk_len, md, parameters.crypt_specs[i]);
 			if (err) {
 				trace("handle_crypt failed: %d\n", err);
@@ -288,7 +316,7 @@ static int init(int argc, char *argv[]) {
 
 		update_device_nodes();
 
-		for (size_t i = 0; i < parameters.mkfs_specs_len; i++) {
+		for (ptrdiff_t i = 0; i < parameters.mkfs_specs_len; i++) {
 			err = mkfs(&parameters.mkfs_specs[i]);
 			if (err) {
 				trace("mkfs %s failed: %d\n", parameters.mkfs_specs[i].dev, err);
@@ -296,7 +324,7 @@ static int init(int argc, char *argv[]) {
 			}
 		}
 
-		for (size_t i = 0; i < parameters.mount_specs_len; i++) {
+		for (ptrdiff_t i = 0; i < parameters.mount_specs_len; i++) {
 			err = mount(parameters.mount_specs[i].source,
 			            parameters.mount_specs[i].target,
 			            parameters.mount_specs[i].fstype,
@@ -309,8 +337,12 @@ static int init(int argc, char *argv[]) {
 		}
 
 		char config_path[256] = {0};
-		snprintf(config_path, sizeof config_path, "%s/config.json",
-		         parameters.workload_path);
+		err = snprintf_checked(config_path, sizeof config_path, "%s/config.json",
+		                       parameters.workload_path);
+		if (err) {
+			trace("Could not write config_path\n");
+			goto cleanup;
+		}
 		err = copy_file(config_path, BUNDLE_CONFIG_PATH);
 		if (err) {
 			trace("Cannot copy %s to %s\n", config_path, BUNDLE_CONFIG_PATH);
@@ -318,7 +350,8 @@ static int init(int argc, char *argv[]) {
 		}
 
 		char key_env_var[] = SECRET_KEY_TEMPLATE;
-		write_hex(sk, sizeof sk, key_env_var + strlen("TD_SECRET_KEY="));
+		write_hex(sk, sizeof sk, key_env_var + strlen("TD_SECRET_KEY="),
+		          sizeof key_env_var);
 		replace_in_file(BUNDLE_CONFIG_PATH, SECRET_KEY_TEMPLATE, key_env_var);
 		mbedtls_platform_zeroize(key_env_var, sizeof SECRET_KEY_TEMPLATE);
 

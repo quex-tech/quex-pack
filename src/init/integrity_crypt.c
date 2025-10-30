@@ -96,7 +96,7 @@ static const struct superblock integrity_crypt_expected_sb = {.magic = "integrt"
                                                               .salt = {0}};
 
 static int get_superblock(const char *dev_path, struct superblock *output) {
-	uint8_t raw_sb[SUPERBLOCK_SIZE];
+	uint8_t raw_sb[SUPERBLOCK_SIZE] = {0};
 	int fd = open(dev_path, O_RDONLY);
 	if (fd < 0) {
 		int err = errno;
@@ -133,7 +133,7 @@ static int get_superblock(const char *dev_path, struct superblock *output) {
 
 #ifdef ENABLE_TRACE
 	char sb_hex[129] = {0};
-	write_hex(raw_sb, 64, sb_hex);
+	write_hex(raw_sb, 64, sb_hex, sizeof sb_hex);
 	trace("Superblock: %s\n", sb_hex);
 #endif
 
@@ -148,7 +148,6 @@ static int get_superblock(const char *dev_path, struct superblock *output) {
 }
 
 static int validate_superblock(const struct superblock *sb, const struct superblock *expected_sb) {
-
 	if (memcmp(sb->magic, expected_sb->magic, sizeof expected_sb->magic) != 0) {
 		trace("Invalid magic\n");
 		return -1;
@@ -198,7 +197,7 @@ static int get_provided_sectors(const char *name, uint64_t *result) {
 	struct dm_target target = {0};
 	err = get_device_status(name, &target);
 	if (err) {
-		trace("get_device_status failed\n");
+		trace("get_device_status failed: %d\n", err);
 		goto cleanup;
 	}
 
@@ -233,7 +232,7 @@ static int test_read(const char *dev_path) {
 		fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
 	}
 
-	char buffer[4096];
+	char buffer[4096] = {0};
 	ssize_t bytes_read = read(fd, buffer, sizeof buffer);
 	int read_errno = errno;
 	close(fd);
@@ -250,54 +249,76 @@ static int test_read(const char *dev_path) {
 	return -1;
 }
 
-static void format_integrity_only_params(const char *dev_path, const uint8_t mac_key[32],
-                                         const uint8_t journal_crypt_key[32],
+static int format_integrity_only_params(const char *dev_path, const uint8_t mac_key[32],
+                                        const uint8_t journal_crypt_key[32],
+                                        char output[TABLE_MAX_LENGTH]) {
+	char mac_key_hex[65] = {0};
+	write_hex(mac_key, 32, mac_key_hex, sizeof mac_key_hex);
+
+	char journal_crypt_key_hex[65] = {0};
+	write_hex(journal_crypt_key, 32, journal_crypt_key_hex, sizeof journal_crypt_key_hex);
+
+	int err = snprintf_checked(output, TABLE_MAX_LENGTH,
+	                           "%s 0 - J 6 "
+	                           "journal_sectors:%u "
+	                           "internal_hash:hmac(sha256):%s "
+	                           "journal_crypt:ctr(aes):%s "
+	                           "block_size:%d "
+	                           "fix_hmac fix_padding",
+	                           dev_path, JOURNAL_SECTORS, mac_key_hex, journal_crypt_key_hex,
+	                           BLOCK_SIZE);
+
+	if (err) {
+		trace("Could not write integrity table\n");
+		return err;
+	}
+
+	return 0;
+}
+
+static int format_integrity_crypt_params(const char *dev_path, const uint8_t journal_crypt_key[32],
+                                         const uint8_t journal_mac_key[32],
                                          char output[TABLE_MAX_LENGTH]) {
-	char mac_key_hex[65];
-	write_hex(mac_key, 32, mac_key_hex);
+	char journal_crypt_key_hex[65] = {0};
+	write_hex(journal_crypt_key, 32, journal_crypt_key_hex, sizeof journal_crypt_key_hex);
 
-	char journal_crypt_key_hex[65];
-	write_hex(journal_crypt_key, 32, journal_crypt_key_hex);
+	char journal_mac_key_hex[65] = {0};
+	write_hex(journal_mac_key, 32, journal_mac_key_hex, sizeof journal_mac_key_hex);
 
-	snprintf(output, TABLE_MAX_LENGTH,
-	         "%s 0 - J 6 "
-	         "journal_sectors:%u "
-	         "internal_hash:hmac(sha256):%s "
-	         "journal_crypt:ctr(aes):%s "
-	         "block_size:%d "
-	         "fix_hmac fix_padding",
-	         dev_path, JOURNAL_SECTORS, mac_key_hex, journal_crypt_key_hex, BLOCK_SIZE);
+	int err = snprintf_checked(output, TABLE_MAX_LENGTH,
+	                           "%s 0 28 J 6 "
+	                           "journal_sectors:%u "
+	                           "journal_crypt:ctr(aes):%s "
+	                           "journal_mac:hmac(sha256):%s "
+	                           "block_size:%d "
+	                           "fix_hmac fix_padding",
+	                           dev_path, JOURNAL_SECTORS, journal_crypt_key_hex,
+	                           journal_mac_key_hex, BLOCK_SIZE);
+
+	if (err) {
+		trace("Could not write integrity table\n");
+		return err;
+	}
+
+	return 0;
 }
 
-static void format_integrity_crypt_params(const char *dev_path, const uint8_t journal_crypt_key[32],
-                                          const uint8_t journal_mac_key[32],
-                                          char output[TABLE_MAX_LENGTH]) {
+static int format_crypt_params(const char *dev_path, const uint8_t key[32],
+                               char output[TABLE_MAX_LENGTH]) {
+	char key_hex[65] = {0};
+	write_hex(key, 32, key_hex, sizeof key_hex);
 
-	char journal_crypt_key_hex[65];
-	write_hex(journal_crypt_key, 32, journal_crypt_key_hex);
+	int err = snprintf_checked(output, TABLE_MAX_LENGTH,
+	                           "capi:gcm(aes)-random %s 0 %s 0 "
+	                           "2 integrity:28:aead sector_size:%d",
+	                           key_hex, dev_path, BLOCK_SIZE);
 
-	char journal_mac_key_hex[65];
-	write_hex(journal_mac_key, 32, journal_mac_key_hex);
+	if (err) {
+		trace("Could not write crypt table\n");
+		return err;
+	}
 
-	snprintf(output, TABLE_MAX_LENGTH,
-	         "%s 0 28 J 6 "
-	         "journal_sectors:%u "
-	         "journal_crypt:ctr(aes):%s "
-	         "journal_mac:hmac(sha256):%s "
-	         "block_size:%d "
-	         "fix_hmac fix_padding",
-	         dev_path, JOURNAL_SECTORS, journal_crypt_key_hex, journal_mac_key_hex, BLOCK_SIZE);
-}
-
-static void format_crypt_params(const char *dev_path, const uint8_t key[32],
-                                char output[TABLE_MAX_LENGTH]) {
-	char key_hex[65];
-	write_hex(key, 32, key_hex);
-
-	snprintf(output, TABLE_MAX_LENGTH,
-	         "capi:gcm(aes)-random %s 0 %s 0 "
-	         "2 integrity:28:aead sector_size:%d",
-	         key_hex, dev_path, BLOCK_SIZE);
+	return 0;
 }
 
 static int map_integrity_device(const char *mapper_name, char target_params[TABLE_MAX_LENGTH]) {
@@ -306,39 +327,39 @@ static int map_integrity_device(const char *mapper_name, char target_params[TABL
 
 	int err = create_device(mapper_name, &target);
 	if (err) {
-		trace("create_device failed\n");
+		trace("create_device failed: %d\n", err);
 		return err;
 	}
 
 	uint64_t provided = 0;
 	err = get_provided_sectors(mapper_name, &provided);
 	if (err) {
-		trace("get_provided_sectors failed\n");
+		trace("get_provided_sectors failed: %d\n", err);
 		return err;
 	}
 
 	err = suspend_device(mapper_name);
 	if (err) {
-		trace("suspend_device failed\n");
+		trace("suspend_device failed: %d\n", err);
 		return err;
 	}
 
 	target.size = provided;
 	err = reload_table(mapper_name, &target);
 	if (err) {
-		trace("reload_table failed\n");
+		trace("reload_table failed: %d\n", err);
 		return err;
 	}
 
 	err = resume_device(mapper_name);
 	if (err) {
-		trace("resume_device failed\n");
+		trace("resume_device failed: %d\n", err);
 		return err;
 	}
 
 	err = update_device_nodes();
 	if (err) {
-		trace("update_device_nodes failed\n");
+		trace("update_device_nodes failed: %d\n", err);
 		return err;
 	}
 
@@ -352,13 +373,13 @@ static int map_crypt_device(const char *mapper_name, char target_params[TABLE_MA
 
 	int err = create_device(mapper_name, &target);
 	if (err) {
-		trace("create_device failed\n");
+		trace("create_device failed: %d\n", err);
 		return err;
 	}
 
 	err = update_device_nodes();
 	if (err) {
-		trace("update_device_nodes failed\n");
+		trace("update_device_nodes failed: %d\n", err);
 		return err;
 	}
 
@@ -369,17 +390,22 @@ static int init_integrity(const char *mapper_name, const char *dev_path, const u
                           const uint8_t journal_crypt_key[32]) {
 	trace("Initializing integrity...\n");
 
-	if (zeroize_device(dev_path, SUPERBLOCK_SIZE) != 0) {
-		trace("zeroize_device %s failed\n", dev_path);
-		return -1;
+	int err = zeroize_device(dev_path, SUPERBLOCK_SIZE);
+	if (err) {
+		trace("zeroize_device %s failed: %d\n", dev_path, err);
+		return err;
 	}
 
 	char target_params[TABLE_MAX_LENGTH] = {0};
-	format_integrity_only_params(dev_path, mac_key, journal_crypt_key, target_params);
-
-	int err = map_integrity_device(mapper_name, target_params);
+	err = format_integrity_only_params(dev_path, mac_key, journal_crypt_key, target_params);
 	if (err) {
-		trace("map_integrity_device failed\n");
+		trace("format_integrity_only_params failed: %d\n", err);
+		return err;
+	}
+
+	err = map_integrity_device(mapper_name, target_params);
+	if (err) {
+		trace("map_integrity_device failed: %d\n", err);
 		return err;
 	}
 
@@ -388,15 +414,27 @@ static int init_integrity(const char *mapper_name, const char *dev_path, const u
 	uint64_t provided = 0;
 	err = get_provided_sectors(mapper_name, &provided);
 	if (err) {
-		trace("get_provided_sectors failed\n");
+		trace("get_provided_sectors failed: %d\n", err);
 		return err;
 	}
 
-	char mapped_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s", mapper_name);
+	char mapped_dev_path[DEV_PATH_MAX_LENGTH] = {0};
 
-	if (zeroize_device(mapped_dev_path, provided * SECTOR_SIZE) != 0) {
-		trace("zeroize_device %s failed\n", mapped_dev_path);
+	err = snprintf_checked(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s",
+	                       mapper_name);
+	if (err) {
+		trace("Could not write mapped_dev_path\n");
+		return err;
+	}
+
+	if (provided > UINT64_MAX / SECTOR_SIZE) {
+		trace("too many sectors\n");
+		return -1;
+	}
+
+	err = zeroize_device(mapped_dev_path, provided * SECTOR_SIZE);
+	if (err) {
+		trace("zeroize_device %s failed: %d\n", mapped_dev_path, err);
 		return err;
 	}
 
@@ -408,16 +446,25 @@ static int restore_integrity(const char *mapper_name, const char *dev_path,
 	trace("Restoring integrity...\n");
 
 	char target_params[TABLE_MAX_LENGTH] = {0};
-	format_integrity_only_params(dev_path, mac_key, journal_crypt_key, target_params);
-
-	int err = map_integrity_device(mapper_name, target_params);
+	int err = format_integrity_only_params(dev_path, mac_key, journal_crypt_key, target_params);
 	if (err) {
-		trace("map_integrity_device failed\n");
+		trace("format_integrity_only_params failed: %d\n", err);
+		return err;
+	}
+
+	err = map_integrity_device(mapper_name, target_params);
+	if (err) {
+		trace("map_integrity_device failed: %d\n", err);
 		return err;
 	}
 
 	char mapped_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s", mapper_name);
+	err = snprintf_checked(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s",
+	                       mapper_name);
+	if (err) {
+		trace("Could not write mapped_dev_path\n");
+		return err;
+	}
 
 	err = test_read(mapped_dev_path);
 	if (err) {
@@ -433,20 +480,30 @@ static int init_crypt(const char *mapper_name, const char *dev_path, const uint8
 	trace("Initializing integrity...\n");
 
 	char integrity_mapper_name[MAPPER_NAME_MAX_LENGTH] = {0};
-	snprintf(integrity_mapper_name, sizeof integrity_mapper_name, "%s-integrity", mapper_name);
+	int err = snprintf_checked(integrity_mapper_name, sizeof integrity_mapper_name,
+	                           "%s-integrity", mapper_name);
+	if (err) {
+		trace("Could not write integrity_mapper_name\n");
+		return err;
+	}
 
-	if (zeroize_device(dev_path, SUPERBLOCK_SIZE) != 0) {
-		trace("zeroize_device %s failed\n", dev_path);
-		return -1;
+	err = zeroize_device(dev_path, SUPERBLOCK_SIZE);
+	if (err) {
+		trace("zeroize_device %s failed: %d\n", dev_path, err);
+		return err;
 	}
 
 	char integrity_target_params[TABLE_MAX_LENGTH] = {0};
-	format_integrity_crypt_params(dev_path, journal_crypt_key, journal_mac_key,
-	                              integrity_target_params);
-
-	int err = map_integrity_device(integrity_mapper_name, integrity_target_params);
+	err = format_integrity_crypt_params(dev_path, journal_crypt_key, journal_mac_key,
+	                                    integrity_target_params);
 	if (err) {
-		trace("map_integrity_device failed\n");
+		trace("format_integrity_crypt_params failed: %d\n", err);
+		return err;
+	}
+
+	err = map_integrity_device(integrity_mapper_name, integrity_target_params);
+	if (err) {
+		trace("map_integrity_device failed: %d\n", err);
 		return err;
 	}
 
@@ -455,31 +512,50 @@ static int init_crypt(const char *mapper_name, const char *dev_path, const uint8
 	uint64_t provided = 0;
 	err = get_provided_sectors(integrity_mapper_name, &provided);
 	if (err) {
-		trace("get_provided_sectors failed\n");
+		trace("get_provided_sectors failed: %d\n", err);
 		return err;
 	}
 
-	char mapped_integrity_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_integrity_dev_path, sizeof mapped_integrity_dev_path, "/dev/mapper/%s",
-	         integrity_mapper_name);
+	char mapped_integrity_dev_path[DEV_PATH_MAX_LENGTH] = {0};
+	err = snprintf_checked(mapped_integrity_dev_path, sizeof mapped_integrity_dev_path,
+	                       "/dev/mapper/%s", integrity_mapper_name);
+	if (err) {
+		trace("Could not write mapped_integrity_dev_path\n");
+		return err;
+	}
 
 	char crypt_target_params[TABLE_MAX_LENGTH] = {0};
-	format_crypt_params(mapped_integrity_dev_path, key, crypt_target_params);
+	err = format_crypt_params(mapped_integrity_dev_path, key, crypt_target_params);
+	if (err) {
+		trace("format_crypt_params failed: %d\n", err);
+		return err;
+	}
 
 	err = map_crypt_device(mapper_name, crypt_target_params, provided);
 	if (err) {
-		trace("map_crypt_device failed\n");
+		trace("map_crypt_device failed: %d\n", err);
 		return err;
 	}
 
 	trace("Zeroizing the whole device...\n");
 
 	char mapped_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s", mapper_name);
+	err = snprintf_checked(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s",
+	                       mapper_name);
+	if (err) {
+		trace("Could not write mapped_dev_path\n");
+		return err;
+	}
 
-	if (zeroize_device(mapped_dev_path, provided * SECTOR_SIZE) != 0) {
-		trace("zeroize_device %s failed\n", mapped_dev_path);
+	if (provided > UINT64_MAX / SECTOR_SIZE) {
+		trace("too many sectors\n");
 		return -1;
+	}
+
+	err = zeroize_device(mapped_dev_path, provided * SECTOR_SIZE);
+	if (err) {
+		trace("zeroize_device %s failed: %d\n", mapped_dev_path, err);
+		return err;
 	}
 
 	return 0;
@@ -490,42 +566,64 @@ static int restore_crypt(const char *mapper_name, const char *dev_path, const ui
 	trace("Restoring integrity...\n");
 
 	char integrity_mapper_name[MAPPER_NAME_MAX_LENGTH] = {0};
-	snprintf(integrity_mapper_name, sizeof integrity_mapper_name, "%s-integrity", mapper_name);
+	int err = snprintf_checked(integrity_mapper_name, sizeof integrity_mapper_name,
+	                           "%s-integrity", mapper_name);
+	if (err) {
+		trace("Could not write integrity_mapper_name\n");
+		return err;
+	}
 
 	char integrity_target_params[TABLE_MAX_LENGTH] = {0};
-	format_integrity_crypt_params(dev_path, journal_crypt_key, journal_mac_key,
-	                              integrity_target_params);
-
-	int err = map_integrity_device(integrity_mapper_name, integrity_target_params);
+	err = format_integrity_crypt_params(dev_path, journal_crypt_key, journal_mac_key,
+	                                    integrity_target_params);
 	if (err) {
-		trace("map_integrity_device failed\n");
+		trace("format_integrity_crypt_params failed: %d\n", err);
+		return err;
+	}
+
+	err = map_integrity_device(integrity_mapper_name, integrity_target_params);
+	if (err) {
+		trace("map_integrity_device failed: %d\n", err);
 		return err;
 	}
 
 	trace("Restoring crypt...\n");
 
 	char mapped_integrity_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_integrity_dev_path, sizeof mapped_integrity_dev_path, "/dev/mapper/%s",
-	         integrity_mapper_name);
+	err = snprintf_checked(mapped_integrity_dev_path, sizeof mapped_integrity_dev_path,
+	                       "/dev/mapper/%s", integrity_mapper_name);
+	if (err) {
+		trace("Could not write mapped_integrity_dev_path\n");
+		return err;
+	}
 
 	char crypt_target_params[TABLE_MAX_LENGTH] = {0};
-	format_crypt_params(mapped_integrity_dev_path, key, crypt_target_params);
+	err = format_crypt_params(mapped_integrity_dev_path, key, crypt_target_params);
+	if (err) {
+		trace("format_crypt_params failed: %d\n", err);
+		return err;
+	}
 
 	uint64_t provided = 0;
 	err = get_provided_sectors(integrity_mapper_name, &provided);
 	if (err) {
-		trace("get_provided_sectors failed\n");
+		trace("get_provided_sectors failed: %d\n", err);
 		return err;
 	}
 
 	err = map_crypt_device(mapper_name, crypt_target_params, provided);
 	if (err) {
-		trace("map_crypt_device failed\n");
+		trace("map_crypt_device failed: %d\n", err);
 		return err;
 	}
 
 	char mapped_dev_path[DEV_PATH_MAX_LENGTH];
-	snprintf(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s", mapper_name);
+	err = snprintf_checked(mapped_dev_path, sizeof mapped_dev_path, "/dev/mapper/%s",
+	                       mapper_name);
+	if (err) {
+		trace("Could not write mapped_dev_path\n");
+		return -1;
+	}
 
 	err = test_read(mapped_dev_path);
 	if (err) {
@@ -537,10 +635,6 @@ static int restore_crypt(const char *mapper_name, const char *dev_path, const ui
 }
 
 int parse_integrity_spec(char *input, struct integrity_spec *out_spec) {
-	if (!input || !out_spec) {
-		return -1;
-	}
-
 	char *saveptr;
 	char *dev = strtok_r(input, ":", &saveptr);
 	char *name = strtok_r(NULL, ":", &saveptr);
@@ -561,7 +655,7 @@ int setup_integrity(const struct integrity_spec *spec, const uint8_t mac_key[32]
 	struct superblock sb = {0};
 	int err = get_superblock(spec->dev, &sb);
 	if (err && err != NO_SUPERBLOCK) {
-		trace("Cannot get superblock\n");
+		trace("Cannot get superblock: %d\n", err);
 		return err;
 	}
 
@@ -572,7 +666,7 @@ int setup_integrity(const struct integrity_spec *spec, const uint8_t mac_key[32]
 
 	err = validate_superblock(&sb, &integrity_only_expected_sb);
 	if (err) {
-		trace("Invalid superblock\n");
+		trace("Invalid superblock: %d\n", err);
 		return err;
 	}
 
@@ -580,10 +674,6 @@ int setup_integrity(const struct integrity_spec *spec, const uint8_t mac_key[32]
 }
 
 int parse_crypt_spec(char *input, struct crypt_spec *out_spec) {
-	if (!input || !out_spec) {
-		return -1;
-	}
-
 	char *saveptr;
 	char *dev = strtok_r(input, ":", &saveptr);
 	char *name = strtok_r(NULL, ":", &saveptr);
@@ -604,7 +694,7 @@ int setup_crypt(const struct crypt_spec *spec, const uint8_t key[32],
 	struct superblock sb = {0};
 	int err = get_superblock(spec->dev, &sb);
 	if (err && err != NO_SUPERBLOCK) {
-		trace("Cannot get superblock\n");
+		trace("Cannot get superblock: %d\n", err);
 		return err;
 	}
 
@@ -615,7 +705,7 @@ int setup_crypt(const struct crypt_spec *spec, const uint8_t key[32],
 
 	err = validate_superblock(&sb, &integrity_crypt_expected_sb);
 	if (err) {
-		trace("Invalid superblock\n");
+		trace("Invalid superblock: %d\n", err);
 		return err;
 	}
 
