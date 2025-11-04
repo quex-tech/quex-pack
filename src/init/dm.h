@@ -3,7 +3,7 @@
 #ifndef DM_H
 #define DM_H
 
-#include <inttypes.h>
+#include <stdint.h>
 
 struct dm_target {
 	uint64_t start;

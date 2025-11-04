@@ -29,139 +29,147 @@
 	"TD_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 #define BUNDLE_CONFIG_PATH "/etc/bundle_config.json"
-#define ROOT_PEM_PATH "/etc/root.pem"
-#define QUOTE_PATH "/var/data/quote.txt"
+
+static const char ROOT_PEM_PATH[] = "/etc/root.pem";
+static const char QUOTE_PATH[] = "/var/data/quote.txt";
 
 static const uint8_t hkdf_salt[32] = {
     0x7f, 0x56, 0x26, 0xb9, 0xf2, 0x95, 0x8c, 0x47, 0xbe, 0x9d, 0x3d, 0x7b, 0xb1, 0x6d, 0xb6, 0xf2,
     0x84, 0x84, 0x14, 0x25, 0x8a, 0xa7, 0x3a, 0x5a, 0x4f, 0x43, 0x9d, 0xe3, 0x18, 0x65, 0xa7, 0x3a};
 
-static int handle_integrity(const uint8_t *prk, size_t prk_len, const mbedtls_md_info_t *md,
+static int handle_integrity(const uint8_t *prk, size_t prk_len, const mbedtls_md_info_t *md_info,
                             struct integrity_spec spec) {
 	int err = 0;
-	uint8_t integrity_sk[32] = {0};
-	uint8_t integrity_journal_crypt_sk[32] = {0};
+	uint8_t integrity_secret_key[32] = {0};
+	uint8_t integrity_journal_crypt_secret_key[32] = {0};
 	{
-		char integrity_sk_info[512] = {0};
-		err = snprintf_checked(integrity_sk_info, sizeof integrity_sk_info,
+		char integrity_secret_key_info[512] = {0};
+		err = snprintf_checked(integrity_secret_key_info, sizeof integrity_secret_key_info,
 		                       "integrity:%s:%s:mac", spec.dev, spec.name);
 		if (err) {
-			trace("Could not write integrity_sk_info\n");
+			trace("Could not write integrity_secret_key_info\n");
 			goto cleanup;
 		}
 
-		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)integrity_sk_info,
-		                          sizeof integrity_sk_info, integrity_sk,
-		                          sizeof integrity_sk);
+		err =
+		    mbedtls_hkdf_expand(md_info, prk, prk_len, (uint8_t *)integrity_secret_key_info,
+		                        sizeof integrity_secret_key_info, integrity_secret_key,
+		                        sizeof integrity_secret_key);
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
 			goto cleanup;
 		}
 
-		char integrity_journal_crypt_sk_info[512] = {0};
-		err = snprintf_checked(integrity_journal_crypt_sk_info,
-		                       sizeof integrity_journal_crypt_sk_info,
+		char integrity_journal_crypt_secret_key_info[512] = {0};
+		err = snprintf_checked(integrity_journal_crypt_secret_key_info,
+		                       sizeof integrity_journal_crypt_secret_key_info,
 		                       "integrity:%s:%s:journal_crypt", spec.dev, spec.name);
 		if (err) {
-			trace("Could not write integrity_journal_crypt_sk_info\n");
+			trace("Could not write integrity_journal_crypt_secret_key_info\n");
 			goto cleanup;
 		}
 
 		err = mbedtls_hkdf_expand(
-		    md, prk, prk_len, (uint8_t *)integrity_journal_crypt_sk_info,
-		    sizeof integrity_journal_crypt_sk_info, integrity_journal_crypt_sk,
-		    sizeof integrity_journal_crypt_sk);
+		    md_info, prk, prk_len, (uint8_t *)integrity_journal_crypt_secret_key_info,
+		    sizeof integrity_journal_crypt_secret_key_info,
+		    integrity_journal_crypt_secret_key, sizeof integrity_journal_crypt_secret_key);
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
 			goto cleanup;
 		}
 
-		err = setup_integrity(&spec, integrity_sk, integrity_journal_crypt_sk);
+		err = setup_integrity(&spec, integrity_secret_key,
+		                      integrity_journal_crypt_secret_key);
 		if (err) {
 			trace("setup_integrity %s failed: %d\n", spec.dev, err);
 			goto cleanup;
 		}
 	}
 cleanup:
-	mbedtls_platform_zeroize(integrity_sk, 32);
-	mbedtls_platform_zeroize(integrity_journal_crypt_sk, 32);
+	mbedtls_platform_zeroize(integrity_secret_key, 32);
+	mbedtls_platform_zeroize(integrity_journal_crypt_secret_key, 32);
 
 	return err;
 }
 
-static int handle_crypt(const uint8_t *prk, size_t prk_len, const mbedtls_md_info_t *md,
+static int handle_crypt(const uint8_t *prk, size_t prk_len, const mbedtls_md_info_t *md_info,
                         struct crypt_spec spec) {
 	int err = 0;
-	uint8_t crypt_sk[32] = {0};
-	uint8_t crypt_journal_crypt_sk[32] = {0};
-	uint8_t crypt_journal_mac_sk[32] = {0};
+	uint8_t crypt_secret_key[32] = {0};
+	uint8_t crypt_journal_crypt_secret_key[32] = {0};
+	uint8_t crypt_journal_mac_secret_key[32] = {0};
 	{
-		char crypt_sk_info[512] = {0};
-		err = snprintf_checked(crypt_sk_info, sizeof crypt_sk_info, "crypt=%s:%s", spec.dev,
-		                       spec.name);
+		char crypt_secret_key_info[512] = {0};
+		err = snprintf_checked(crypt_secret_key_info, sizeof crypt_secret_key_info,
+		                       "crypt=%s:%s", spec.dev, spec.name);
 		if (err) {
-			trace("Could not write crypt_sk_info\n");
+			trace("Could not write crypt_secret_key_info\n");
 			goto cleanup;
 		}
 
-		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_sk_info,
-		                          strlen(crypt_sk_info), crypt_sk, sizeof crypt_sk);
+		err = mbedtls_hkdf_expand(md_info, prk, prk_len, (uint8_t *)crypt_secret_key_info,
+		                          strlen(crypt_secret_key_info), crypt_secret_key,
+		                          sizeof crypt_secret_key);
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
 			goto cleanup;
 		}
 
-		char crypt_journal_crypt_sk_info[512] = {0};
-		err = snprintf_checked(crypt_journal_crypt_sk_info,
-		                       sizeof crypt_journal_crypt_sk_info,
+		char crypt_journal_crypt_secret_key_info[512] = {0};
+		err = snprintf_checked(crypt_journal_crypt_secret_key_info,
+		                       sizeof crypt_journal_crypt_secret_key_info,
 		                       "crypt:%s:%s:journal_crypt", spec.dev, spec.name);
 		if (err) {
-			trace("Could not write crypt_journal_crypt_sk_info\n");
+			trace("Could not write crypt_journal_crypt_secret_key_info\n");
 			goto cleanup;
 		}
 
-		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_journal_crypt_sk_info,
-		                          strlen(crypt_journal_crypt_sk_info),
-		                          crypt_journal_crypt_sk, sizeof crypt_journal_crypt_sk);
+		err = mbedtls_hkdf_expand(
+		    md_info, prk, prk_len, (uint8_t *)crypt_journal_crypt_secret_key_info,
+		    strlen(crypt_journal_crypt_secret_key_info), crypt_journal_crypt_secret_key,
+		    sizeof crypt_journal_crypt_secret_key);
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
 			goto cleanup;
 		}
 
-		char crypt_journal_mac_sk_info[512] = {0};
-		err = snprintf_checked(crypt_journal_mac_sk_info, sizeof crypt_journal_mac_sk_info,
+		char crypt_journal_mac_secret_key_info[512] = {0};
+		err = snprintf_checked(crypt_journal_mac_secret_key_info,
+		                       sizeof crypt_journal_mac_secret_key_info,
 		                       "crypt:%s:%s:journal_mac", spec.dev, spec.name);
 		if (err) {
-			trace("Could not write crypt_journal_mac_sk_info\n");
+			trace("Could not write crypt_journal_mac_secret_key_info\n");
 			goto cleanup;
 		}
 
-		err = mbedtls_hkdf_expand(md, prk, prk_len, (uint8_t *)crypt_journal_mac_sk_info,
-		                          strlen(crypt_journal_mac_sk_info), crypt_journal_mac_sk,
-		                          sizeof crypt_journal_mac_sk);
+		err = mbedtls_hkdf_expand(
+		    md_info, prk, prk_len, (uint8_t *)crypt_journal_mac_secret_key_info,
+		    strlen(crypt_journal_mac_secret_key_info), crypt_journal_mac_secret_key,
+		    sizeof crypt_journal_mac_secret_key);
 		if (err) {
 			trace("mbedtls_hkdf_expand failed: %d\n", err);
 			goto cleanup;
 		}
 
-		err = setup_crypt(&spec, crypt_sk, crypt_journal_crypt_sk, crypt_journal_mac_sk);
+		err = setup_crypt(&spec, crypt_secret_key, crypt_journal_crypt_secret_key,
+		                  crypt_journal_mac_secret_key);
 		if (err) {
 			trace("setup_crypt %s failed: %d\n", spec.dev, err);
 			goto cleanup;
 		}
 	}
 cleanup:
-	mbedtls_platform_zeroize(crypt_sk, 32);
-	mbedtls_platform_zeroize(crypt_journal_crypt_sk, 32);
-	mbedtls_platform_zeroize(crypt_journal_mac_sk, 32);
+	mbedtls_platform_zeroize(crypt_secret_key, 32);
+	mbedtls_platform_zeroize(crypt_journal_crypt_secret_key, 32);
+	mbedtls_platform_zeroize(crypt_journal_mac_secret_key, 32);
 
 	return err;
 }
 
-static int save_quote(const uint8_t pk[64], const char *path) {
+static int save_quote(const uint8_t pub_key[64], const char *path) {
 	uint8_t *p_quote_buf = NULL;
 	tdx_report_data_t report_data = {0};
-	memcpy(&report_data, pk, 64);
+	memcpy(&report_data, pub_key, 64);
 
 	tdx_uuid_t selected_att_key_id = {0};
 	uint32_t quote_size = 0;
@@ -187,6 +195,122 @@ cleanup:
 	return err;
 }
 
+static int mount_default_fs(void) {
+	int err = mount("devtmpfs", "/dev", "devtmpfs", MS_NOSUID | MS_NOEXEC, "mode=0755");
+	if (err) {
+		trace("mount /dev failed: %s\n", strerror(errno));
+		return -1;
+	}
+
+	err = mount("none", "/proc", "proc", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
+	if (err) {
+		trace("mount /proc failed: %s\n", strerror(errno));
+		return -1;
+	}
+
+	err = mount("none", "/sys", "sysfs", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
+	if (err) {
+		trace("mount /sys failed: %s\n", strerror(errno));
+		return -1;
+	}
+
+	err =
+	    mount("none", "/sys/kernel/config", "configfs", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
+	if (err) {
+		trace("mount /sys/kernel/config failed: %s\n", strerror(errno));
+		return -1;
+	}
+
+	err = mount("none", "/sys/fs/cgroup", "cgroup2", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
+	if (err) {
+		trace("mount /sys/fs/cgroup failed: %s\n", strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
+
+static int handle_disks(struct init_args *parameters, uint8_t secret_key[32]) {
+	uint8_t prk[MBEDTLS_MD_MAX_SIZE] = {0};
+	const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+	const size_t prk_len = mbedtls_md_get_size(md_info);
+
+	int err = mbedtls_hkdf_extract(md_info, hkdf_salt, sizeof hkdf_salt, secret_key, 32, prk);
+	if (err) {
+		trace("mbedtls_hkdf_extract failed: %d\n", err);
+		goto cleanup;
+	}
+
+	for (ptrdiff_t i = 0; i < parameters->integrity_specs_len; i++) {
+		err = handle_integrity(prk, prk_len, md_info, parameters->integrity_specs[i]);
+		if (err) {
+			trace("handle_integrity failed: %d\n", err);
+			goto cleanup;
+		}
+	}
+
+	for (ptrdiff_t i = 0; i < parameters->crypt_specs_len; i++) {
+		err = handle_crypt(prk, prk_len, md_info, parameters->crypt_specs[i]);
+		if (err) {
+			trace("handle_crypt failed: %d\n", err);
+			goto cleanup;
+		}
+	}
+
+	update_device_nodes();
+
+	for (ptrdiff_t i = 0; i < parameters->mkfs_specs_len; i++) {
+		err = mkfs(&parameters->mkfs_specs[i]);
+		if (err) {
+			trace("mkfs %s failed: %d\n", parameters->mkfs_specs[i].dev, err);
+			goto cleanup;
+		}
+	}
+
+	for (ptrdiff_t i = 0; i < parameters->mount_specs_len; i++) {
+		err = mount(parameters->mount_specs[i].source, parameters->mount_specs[i].target,
+		            parameters->mount_specs[i].fstype, parameters->mount_specs[i].flags,
+		            NULL);
+		if (err) {
+			trace("mount %s failed: %s\n", parameters->mount_specs[i].target,
+			      strerror(errno));
+			goto cleanup;
+		}
+	}
+cleanup:
+	mbedtls_platform_zeroize(prk, MBEDTLS_MD_MAX_SIZE);
+	return err;
+}
+
+static int prepare_config(const char *workload_path, const uint8_t secret_key[32]) {
+	char config_path[256] = {0};
+	int err =
+	    snprintf_checked(config_path, sizeof config_path, "%s/config.json", workload_path);
+	if (err) {
+		trace("Could not write config_path\n");
+		return err;
+	}
+
+	err = copy_file(config_path, BUNDLE_CONFIG_PATH);
+	if (err) {
+		trace("Cannot copy %s to %s\n", config_path, BUNDLE_CONFIG_PATH);
+		return err;
+	}
+
+	char key_env_var[] = SECRET_KEY_TEMPLATE;
+	write_hex(secret_key, 32, key_env_var + strlen("TD_SECRET_KEY="), sizeof key_env_var);
+
+	err = replace_in_file(BUNDLE_CONFIG_PATH, SECRET_KEY_TEMPLATE, key_env_var);
+	if (err) {
+		trace("replace_in_file failed: %d\n", err);
+		mbedtls_platform_zeroize(key_env_var, sizeof SECRET_KEY_TEMPLATE);
+		return err;
+	}
+
+	mbedtls_platform_zeroize(key_env_var, sizeof SECRET_KEY_TEMPLATE);
+	return 0;
+}
+
 static int run_crun(const char *workload_path) {
 	int err = 0;
 	char *arg4 = NULL;
@@ -206,7 +330,7 @@ static int run_crun(const char *workload_path) {
 		char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, NULL};
 		char *envp[] = {NULL};
 
-		pid_t pid;
+		pid_t pid = 0;
 		err = posix_spawn(&pid, "/usr/bin/crun", NULL, NULL, argv, envp);
 		if (err) {
 			trace("posix_spawn failed: %s\n", strerror(err));
@@ -215,7 +339,7 @@ static int run_crun(const char *workload_path) {
 
 		trace("Waiting for crun to exit...\n");
 
-		int status;
+		int status = 0;
 		pid_t waitpid_ret = waitpid(pid, &status, 0);
 		if (waitpid_ret < 0) {
 			err = -errno;
@@ -232,138 +356,61 @@ cleanup:
 
 static int init(int argc, char *argv[]) {
 	umask(S_IRWXG | S_IRWXO);
-	int err = 0;
-	uint8_t prk[MBEDTLS_MD_MAX_SIZE] = {0};
-	uint8_t sk[32] = {0};
-	uint8_t pk[64] = {0};
-	{
-		err = prctl(PR_SET_DUMPABLE, 0);
-		if (err) {
-			trace("prctl failed: %s\n", strerror(errno));
-			goto cleanup;
-		}
+	uint8_t secret_key[32] = {0};
+	uint8_t pub_key[64] = {0};
+	struct init_args parameters = {
+	    .key_request_mask = "", .vault_mrenclave = "", .workload_path = "/opt/bundle"};
 
-		struct init_args parameters = {
-		    .key_request_mask = "", .vault_mrenclave = "", .workload_path = "/opt/bundle"};
+	int err = prctl(PR_SET_DUMPABLE, 0);
+	if (err) {
+		trace("prctl failed: %s\n", strerror(errno));
+		goto cleanup;
+	}
 
-		parse_args(argc, argv, &parameters);
+	err = parse_args(argc, argv, &parameters);
+	if (err) {
+		trace("parse_args failed: %d\n", err);
+		goto cleanup;
+	}
 
-		err = mount("devtmpfs", "/dev", "devtmpfs", MS_NOSUID | MS_NOEXEC, "mode=0755");
-		if (err) {
-			trace("mount /dev failed: %s\n", strerror(errno));
-			goto cleanup;
-		}
-		err = mount("none", "/proc", "proc", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
-		if (err) {
-			trace("mount /proc failed: %s\n", strerror(errno));
-			goto cleanup;
-		}
-		err = mount("none", "/sys", "sysfs", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
-		if (err) {
-			trace("mount /sys failed: %s\n", strerror(errno));
-			goto cleanup;
-		}
-		err = mount("none", "/sys/kernel/config", "configfs",
-		            MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
-		if (err) {
-			trace("mount /sys/kernel/config failed: %s\n", strerror(errno));
-			goto cleanup;
-		}
-		err = mount("none", "/sys/fs/cgroup", "cgroup2", MS_NOSUID | MS_NODEV | MS_NOEXEC,
-		            NULL);
-		if (err) {
-			trace("mount /sys/fs/cgroup failed: %s\n", strerror(errno));
-			goto cleanup;
-		}
+	err = mount_default_fs();
+	if (err) {
+		trace("mount_default_fs failed: %d\n", err);
+		goto cleanup;
+	}
 
-		err = get_keys(parameters.key_request_mask, parameters.vault_mrenclave,
-		               ROOT_PEM_PATH, mbedtls_entropy_func, sk, pk);
-		if (err) {
-			trace("get_keys failed: %d\n", err);
-			goto cleanup;
-		}
+	err = get_keys(parameters.key_request_mask, parameters.vault_mrenclave, ROOT_PEM_PATH,
+	               mbedtls_entropy_func, secret_key, pub_key);
+	if (err) {
+		trace("get_keys failed: %d\n", err);
+		goto cleanup;
+	}
 
-		err = save_quote(pk, QUOTE_PATH);
-		if (err) {
-			trace("save_quote failed: %d\n", err);
-			goto cleanup;
-		}
+	err = save_quote(pub_key, QUOTE_PATH);
+	if (err) {
+		trace("save_quote failed: %d\n", err);
+		goto cleanup;
+	}
 
-		const mbedtls_md_info_t *md = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-		const size_t prk_len = mbedtls_md_get_size(md);
+	err = handle_disks(&parameters, secret_key);
+	if (err) {
+		trace("handle_disks failed: %d\n", err);
+		goto cleanup;
+	}
 
-		err = mbedtls_hkdf_extract(md, hkdf_salt, sizeof hkdf_salt, sk, sizeof sk, prk);
-		if (err) {
-			trace("mbedtls_hkdf_extract failed: %d\n", err);
-			goto cleanup;
-		}
+	err = prepare_config(parameters.workload_path, secret_key);
+	if (err) {
+		trace("prepare_config failed: %d\n", err);
+		goto cleanup;
+	}
 
-		for (ptrdiff_t i = 0; i < parameters.integrity_specs_len; i++) {
-			err = handle_integrity(prk, prk_len, md, parameters.integrity_specs[i]);
-			if (err) {
-				trace("handle_integrity failed: %d\n", err);
-				goto cleanup;
-			}
-		}
-
-		for (ptrdiff_t i = 0; i < parameters.crypt_specs_len; i++) {
-			err = handle_crypt(prk, prk_len, md, parameters.crypt_specs[i]);
-			if (err) {
-				trace("handle_crypt failed: %d\n", err);
-				goto cleanup;
-			}
-		}
-
-		update_device_nodes();
-
-		for (ptrdiff_t i = 0; i < parameters.mkfs_specs_len; i++) {
-			err = mkfs(&parameters.mkfs_specs[i]);
-			if (err) {
-				trace("mkfs %s failed: %d\n", parameters.mkfs_specs[i].dev, err);
-				goto cleanup;
-			}
-		}
-
-		for (ptrdiff_t i = 0; i < parameters.mount_specs_len; i++) {
-			err = mount(parameters.mount_specs[i].source,
-			            parameters.mount_specs[i].target,
-			            parameters.mount_specs[i].fstype,
-			            parameters.mount_specs[i].flags, NULL);
-			if (err) {
-				trace("mount %s failed: %s\n", parameters.mount_specs[i].target,
-				      strerror(errno));
-				goto cleanup;
-			}
-		}
-
-		char config_path[256] = {0};
-		err = snprintf_checked(config_path, sizeof config_path, "%s/config.json",
-		                       parameters.workload_path);
-		if (err) {
-			trace("Could not write config_path\n");
-			goto cleanup;
-		}
-		err = copy_file(config_path, BUNDLE_CONFIG_PATH);
-		if (err) {
-			trace("Cannot copy %s to %s\n", config_path, BUNDLE_CONFIG_PATH);
-			goto cleanup;
-		}
-
-		char key_env_var[] = SECRET_KEY_TEMPLATE;
-		write_hex(sk, sizeof sk, key_env_var + strlen("TD_SECRET_KEY="),
-		          sizeof key_env_var);
-		replace_in_file(BUNDLE_CONFIG_PATH, SECRET_KEY_TEMPLATE, key_env_var);
-		mbedtls_platform_zeroize(key_env_var, sizeof SECRET_KEY_TEMPLATE);
-
-		err = run_crun(parameters.workload_path);
-		if (err) {
-			trace("run_crun failed: %d\n", err);
-			goto cleanup;
-		}
+	err = run_crun(parameters.workload_path);
+	if (err) {
+		trace("run_crun failed: %d\n", err);
+		goto cleanup;
 	}
 cleanup:
-	mbedtls_platform_zeroize(sk, 32);
-	mbedtls_platform_zeroize(prk, MBEDTLS_MD_MAX_SIZE);
+	mbedtls_platform_zeroize(secret_key, 32);
 	return err;
 }
 

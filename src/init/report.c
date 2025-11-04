@@ -18,13 +18,13 @@ struct tee_tcb_svn_t_parsed {
 };
 
 static inline void do_mask(uint16_t mask, unsigned bit, void *out_mem, size_t mem_len) {
-	if (!(mask & (1u << bit))) {
+	if (!(mask & (1U << bit))) {
 		memset(out_mem, 0, mem_len);
 	}
 }
 
-#define mask_field(m, b, p, t, f) do_mask(m, b, (uint8_t *)p + offsetof(t, f), sizeof_field(t, f))
-#define mask_exp(m, b, e) do_mask(m, b, &(e), sizeof e)
+#define mask_field(m, b, p, t, f) do_mask(m, b, (uint8_t *)(p) + offsetof(t, f), sizeof_field(t, f))
+#define mask_exp(m, b, e) do_mask(m, b, &(e), sizeof(e))
 
 static void apply_report_mac_struct_mask(sgx_report2_mac_struct_t *mac, uint8_t mask) {
 	mask_exp(mask, 0, mac->report_type);

@@ -14,7 +14,7 @@ static unsigned long parse_mount_flags(const char *options_str) {
 		return 0;
 	}
 
-	char *saveptr;
+	char *saveptr = NULL;
 	const char *token = strtok_r(options, ",", &saveptr);
 	while (token) {
 		if (strcmp(token, "ro") == 0) {
@@ -52,7 +52,7 @@ static unsigned long parse_mount_flags(const char *options_str) {
 }
 
 int parse_mount_spec(char *input, struct mount_spec *out_spec) {
-	char *saveptr;
+	char *saveptr = NULL;
 	char *source = strtok_r(input, ":", &saveptr);
 	char *target = strtok_r(NULL, ":", &saveptr);
 	char *fstype = strtok_r(NULL, ":", &saveptr);

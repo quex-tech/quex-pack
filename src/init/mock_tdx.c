@@ -1,4 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Quex Technologies
 #include "mock_tdx.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <tdx_attest.h>
@@ -18,7 +21,7 @@ tdx_attest_error_t __wrap_tdx_att_get_quote(const tdx_report_data_t *p_tdx_repor
                                             const tdx_uuid_t att_key_id_list[], uint32_t list_size,
                                             tdx_uuid_t *p_att_key_id, uint8_t **pp_quote,
                                             uint32_t *p_quote_size, uint32_t flags);
-tdx_attest_error_t __wrap_tdx_att_free_quote(uint8_t *p_quote);
+tdx_attest_error_t __wrap_tdx_att_free_quote(const uint8_t *p_quote);
 tdx_attest_error_t __wrap_tdx_att_get_report(const tdx_report_data_t *p_tdx_report_data,
                                              tdx_report_t *p_tdx_report);
 
@@ -42,7 +45,10 @@ tdx_attest_error_t __wrap_tdx_att_get_quote(const tdx_report_data_t *p_tdx_repor
 }
 
 // cppcheck-suppress unusedFunction
-tdx_attest_error_t __wrap_tdx_att_free_quote(uint8_t *p_quote) { return TDX_ATTEST_SUCCESS; }
+tdx_attest_error_t __wrap_tdx_att_free_quote(const uint8_t *p_quote) {
+	(void)p_quote;
+	return TDX_ATTEST_SUCCESS;
+}
 
 // cppcheck-suppress unusedFunction
 tdx_attest_error_t __wrap_tdx_att_get_report(const tdx_report_data_t *p_tdx_report_data,

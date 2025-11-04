@@ -7,13 +7,75 @@
 #include "utils.h"
 #include <string.h>
 
+static int parse_workload(char *value, struct init_args *parsed) {
+	if (strlen(value) > 192) {
+		trace("Workload path is too long\n");
+		return -1;
+	}
+	parsed->workload_path = value;
+	return 0;
+}
+
+static int parse_integrity(char *value, struct init_args *parsed) {
+	if (parsed->integrity_specs_len >= MAX_DISKS) {
+		trace("Too many disks\n");
+		return -1;
+	}
+	int err =
+	    parse_integrity_spec(value, &parsed->integrity_specs[parsed->integrity_specs_len++]);
+	if (err) {
+		trace("parse_integrity_spec failed: %d\n", err);
+		return err;
+	}
+	return 0;
+}
+
+static int parse_crypt(char *value, struct init_args *parsed) {
+	if (parsed->crypt_specs_len >= MAX_DISKS) {
+		trace("Too many disks\n");
+		return -1;
+	}
+	int err = parse_crypt_spec(value, &parsed->crypt_specs[parsed->crypt_specs_len++]);
+	if (err) {
+		trace("parse_crypt_spec failed: %d\n", err);
+		return err;
+	}
+	return 0;
+}
+
+static int parse_mkfs(char *value, struct init_args *parsed) {
+	if (parsed->mkfs_specs_len >= MAX_DISKS) {
+		trace("Too many disks\n");
+		return -1;
+	}
+	int err = parse_mkfs_spec(value, &parsed->mkfs_specs[parsed->mkfs_specs_len++]);
+	if (err) {
+		trace("parse_mkfs_spec failed: %d\n", err);
+		return err;
+	}
+	return 0;
+}
+
+static int parse_mount(char *value, struct init_args *parsed) {
+	if (parsed->mount_specs_len >= MAX_DISKS) {
+		trace("Too many disks\n");
+		return -1;
+	}
+	int err = parse_mount_spec(value, &parsed->mount_specs[parsed->mount_specs_len++]);
+	if (err) {
+		trace("parse_mount_spec failed: %d\n", err);
+		return err;
+	}
+	return 0;
+}
+
 static int parse_arg(const char *arg, struct init_args *parsed) {
-	char *eq = (char *)strchr(arg, '=');
-	if (!eq) {
+	char *eq_sign = strchr(arg, '=');
+	if (!eq_sign) {
 		return 0;
 	}
 
-	char *value = eq + 1;
+	char *value = eq_sign + 1;
 
 	if (strncmp(arg, "key_request_mask=", strlen("key_request_mask=")) == 0) {
 		parsed->key_request_mask = value;
@@ -26,65 +88,23 @@ static int parse_arg(const char *arg, struct init_args *parsed) {
 	}
 
 	if (strncmp(arg, "workload=", strlen("workload=")) == 0) {
-		if (strlen(value) > 192) {
-			trace("Workload path is too long\n");
-			return -1;
-		}
-		parsed->workload_path = value;
-		return 0;
+		return parse_workload(value, parsed);
 	}
 
 	if (strncmp(arg, "integrity=", strlen("integrity=")) == 0) {
-		if (parsed->integrity_specs_len >= MAX_DISKS) {
-			trace("Too many disks\n");
-			return -1;
-		}
-		int err = parse_integrity_spec(
-		    value, &parsed->integrity_specs[parsed->integrity_specs_len++]);
-		if (err) {
-			trace("parse_integrity_spec failed: %d\n", err);
-			return err;
-		}
-		return 0;
+		return parse_integrity(value, parsed);
 	}
 
 	if (strncmp(arg, "crypt=", strlen("crypt=")) == 0) {
-		if (parsed->crypt_specs_len >= MAX_DISKS) {
-			trace("Too many disks\n");
-			return -1;
-		}
-		int err = parse_crypt_spec(value, &parsed->crypt_specs[parsed->crypt_specs_len++]);
-		if (err) {
-			trace("parse_crypt_spec failed: %d\n", err);
-			return err;
-		}
-		return 0;
+		return parse_crypt(value, parsed);
 	}
 
 	if (strncmp(arg, "mkfs=", strlen("mkfs=")) == 0) {
-		if (parsed->mkfs_specs_len >= MAX_DISKS) {
-			trace("Too many disks\n");
-			return -1;
-		}
-		int err = parse_mkfs_spec(value, &parsed->mkfs_specs[parsed->mkfs_specs_len++]);
-		if (err) {
-			trace("parse_mkfs_spec failed: %d\n", err);
-			return err;
-		}
-		return 0;
+		return parse_mkfs(value, parsed);
 	}
 
 	if (strncmp(arg, "mount=", strlen("mount=")) == 0) {
-		if (parsed->mount_specs_len >= MAX_DISKS) {
-			trace("Too many disks\n");
-			return -1;
-		}
-		int err = parse_mount_spec(value, &parsed->mount_specs[parsed->mount_specs_len++]);
-		if (err) {
-			trace("parse_mount_spec failed: %d\n", err);
-			return err;
-		}
-		return 0;
+		return parse_mount(value, parsed);
 	}
 
 	return 0;

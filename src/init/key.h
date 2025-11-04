@@ -8,6 +8,6 @@
 
 int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
              const char *root_pem_path, int (*f_entropy)(void *, uint8_t *, size_t),
-             uint8_t out_sk[32], uint8_t out_pk[64]);
+             uint8_t out_secret_key[32], uint8_t out_pk[64]);
 
 #endif

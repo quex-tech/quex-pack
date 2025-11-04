@@ -23,21 +23,22 @@ int read_hex(const char *hex, uint8_t *out_bytes, ptrdiff_t bytes_len);
 int replace_in_file(const char *path, const char *target, const char *replacement);
 int copy_file(const char *src_path, const char *dst_path);
 int zeroize_device(const char *dev_path, uint64_t len);
-int snprintf_checked(char *str, ptrdiff_t size, const char *format, ...);
+int snprintf_checked(char *str, ptrdiff_t size, const char *format, ...)
+    __attribute__((format(printf, 3, 4)));
 
 static inline uint16_t read_u16le(const uint8_t *buf) {
-	return (uint16_t)((uint16_t)buf[1] << 8) | (uint16_t)((uint16_t)buf[0] << 0);
+	return (uint16_t)((uint16_t)buf[1] << 8U) | (uint16_t)((uint16_t)buf[0] << 0U);
 }
 
 static inline uint32_t read_u32le(const uint8_t *buf) {
-	return (uint32_t)buf[3] << 24 | (uint32_t)buf[2] << 16 | (uint32_t)buf[1] << 8 |
-	       (uint32_t)buf[0] << 0;
+	return (uint32_t)buf[3] << 24U | (uint32_t)buf[2] << 16U | (uint32_t)buf[1] << 8U |
+	       (uint32_t)buf[0] << 0U;
 }
 
 static inline uint64_t read_u64le(const uint8_t *buf) {
-	return (uint64_t)buf[7] << 56 | (uint64_t)buf[6] << 48 | (uint64_t)buf[5] << 40 |
-	       (uint64_t)buf[4] << 32 | (uint64_t)buf[3] << 24 | (uint64_t)buf[2] << 16 |
-	       (uint64_t)buf[1] << 8 | (uint64_t)buf[0] << 0;
+	return (uint64_t)buf[7] << 56U | (uint64_t)buf[6] << 48U | (uint64_t)buf[5] << 40U |
+	       (uint64_t)buf[4] << 32U | (uint64_t)buf[3] << 24U | (uint64_t)buf[2] << 16U |
+	       (uint64_t)buf[1] << 8U | (uint64_t)buf[0] << 0U;
 }
 
 #endif

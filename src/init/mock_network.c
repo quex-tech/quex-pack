@@ -7,9 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 
-#define MOCK_NETWORK_FD 133385079
-
+static const int MOCK_NETWORK_FD = 133385079;
 static bool mock_socket_is_open = false;
 
 struct network_data mock_network_incoming = {0};
@@ -52,7 +52,7 @@ int __wrap_setsockopt(int sockfd, int level, int optname, const void *optval, so
 int __wrap_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 int __wrap_listen(int sockfd, int backlog);
 int __wrap_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
-int __wrap_close(int fd);
+int __wrap_close(int sockfd);
 ssize_t __wrap_recv(int sockfd, void *buf, size_t len, int flags);
 ssize_t __wrap___recv_chk(int sockfd, void *buf, size_t len, size_t buflen, int flags);
 ssize_t __wrap_send(int sockfd, const void *buf, size_t len, int flags);
@@ -61,12 +61,15 @@ int __real_setsockopt(int sockfd, int level, int optname, const void *optval, so
 int __real_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 int __real_listen(int sockfd, int backlog);
 int __real_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
-int __real_close(int fd);
+int __real_close(int sockfd);
 ssize_t __real_recv(int sockfd, void *buf, size_t len, int flags);
 ssize_t __real_send(int sockfd, const void *buf, size_t len, int flags);
 
 // cppcheck-suppress unusedFunction
 int __wrap_socket(int domain, int type, int protocol) {
+	(void)domain;
+	(void)type;
+	(void)protocol;
 	mock_socket_is_open = true;
 	return MOCK_NETWORK_FD;
 }
@@ -113,9 +116,9 @@ int __wrap_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
 }
 
 // cppcheck-suppress unusedFunction
-int __wrap_close(int fd) {
-	if (fd != MOCK_NETWORK_FD) {
-		return __real_close(fd);
+int __wrap_close(int sockfd) {
+	if (sockfd != MOCK_NETWORK_FD) {
+		return __real_close(sockfd);
 	}
 
 	mock_socket_is_open = false;
@@ -132,6 +135,7 @@ ssize_t __wrap_recv(int sockfd, void *buf, size_t len, int flags) {
 
 // cppcheck-suppress unusedFunction
 ssize_t __wrap___recv_chk(int sockfd, void *buf, size_t len, size_t buflen, int flags) {
+	(void)buflen;
 	return __wrap_recv(sockfd, buf, len, flags);
 }
 

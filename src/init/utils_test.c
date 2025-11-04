@@ -2,6 +2,7 @@
 // Copyright 2025 Quex Technologies
 #include "test.h"
 #include "utils.h"
+#include <stdint.h>
 #include <string.h>
 
 void test_utils(void);
@@ -27,15 +28,15 @@ static void test_read_hex_known_vector(void) {
 }
 
 static void test_hex_roundtrip(void) {
-	uint8_t in[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-	                0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
-	char hex[sizeof_array(in) * 2 + 1];
-	uint8_t out[sizeof_array(in)] = {0};
+	uint8_t bytes[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+	                   0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+	char hex[sizeof_array(bytes) * 2 + 1];
+	uint8_t out[sizeof_array(bytes)] = {0};
 
-	write_hex(in, sizeof_array(in), hex, sizeof hex);
+	write_hex(bytes, sizeof_array(bytes), hex, sizeof hex);
 	must(read_hex(hex, out, sizeof_array(out)) == 0,
 	     "read_hex must accept output of write_hex");
-	must(memcmp(in, out, sizeof_array(in)) == 0,
+	must(memcmp(bytes, out, sizeof_array(bytes)) == 0,
 	     "Roundtrip write_hex/read_hex must preserve bytes");
 }
 

@@ -9,6 +9,8 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,8 +25,8 @@ int init_socket(uint16_t port) {
 	} addr;
 	int opt = 1;
 
-	int sock;
-	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+	int sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock < 0) {
 		return sock;
 	}
 
@@ -47,7 +49,11 @@ int init_socket(uint16_t port) {
 		return -1;
 	}
 
-	signal(SIGPIPE, SIG_IGN);
+	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+		close(sock);
+		return -1;
+	}
+
 	return sock;
 }
 
@@ -59,8 +65,8 @@ void write_hex(const uint8_t *bytes, ptrdiff_t bytes_len, char *out_hex, ptrdiff
 	static const char hexdigits[] = "0123456789abcdef";
 
 	for (ptrdiff_t i = 0; i < bytes_len; i++) {
-		out_hex[i * 2] = hexdigits[bytes[i] >> 4];
-		out_hex[i * 2 + 1] = hexdigits[bytes[i] & 0xf];
+		out_hex[i * 2] = hexdigits[bytes[i] >> 4U];
+		out_hex[i * 2 + 1] = hexdigits[bytes[i] & 0xfU];
 	}
 
 	out_hex[hex_len - 1] = '\0';
@@ -79,7 +85,7 @@ int write_hex_to_file(const char *path, const uint8_t *bytes, ptrdiff_t bytes_le
 	ptrdiff_t hex_len = bytes_len * 2 + 1;
 	char *hex_str = (char *)malloc((size_t)hex_len);
 	if (!hex_str) {
-		fclose(file);
+		(void)fclose(file);
 		return -2;
 	}
 
@@ -87,36 +93,40 @@ int write_hex_to_file(const char *path, const uint8_t *bytes, ptrdiff_t bytes_le
 
 	if (fprintf(file, "%s", hex_str) < 0) {
 		free(hex_str);
-		fclose(file);
+		(void)fclose(file);
 		return -1;
 	}
 
 	free(hex_str);
-	fclose(file);
-	return 0;
-}
-
-static uint8_t hex_to_lo_nibble(unsigned char c) {
-	if (c >= '0' && c <= '9') {
-		return c - '0';
-	}
-	if (c >= 'a' && c <= 'f') {
-		return c - 'a' + 10;
-	}
-	if (c >= 'A' && c <= 'F') {
-		return c - 'A' + 10;
+	int err = fclose(file);
+	if (err) {
+		return err;
 	}
 	return 0;
 }
 
-static uint8_t hex_to_hi_nibble(unsigned char c) { return hex_to_lo_nibble(c) << 4; }
+static uint8_t hex_to_lo_nibble(uint8_t chr) {
+	if (chr >= '0' && chr <= '9') {
+		return chr - '0';
+	}
+	if (chr >= 'a' && chr <= 'f') {
+		return chr - 'a' + 10;
+	}
+	if (chr >= 'A' && chr <= 'F') {
+		return chr - 'A' + 10;
+	}
+	return 0;
+}
+
+static uint8_t hex_to_hi_nibble(uint8_t chr) { return (uint8_t)(hex_to_lo_nibble(chr) << 4U); }
 
 static uint8_t hex_to_byte(const char *str) {
-	return hex_to_hi_nibble((unsigned char)str[0]) | hex_to_lo_nibble((unsigned char)str[1]);
+	return hex_to_hi_nibble((uint8_t)str[0]) | hex_to_lo_nibble((uint8_t)str[1]);
 }
 
-static bool char_is_hex_digit(unsigned char c) {
-	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+static bool char_is_hex_digit(uint8_t chr) {
+	return (chr >= '0' && chr <= '9') || (chr >= 'a' && chr <= 'f') ||
+	       (chr >= 'A' && chr <= 'F');
 }
 
 int read_hex(const char *hex, uint8_t *out_bytes, ptrdiff_t bytes_len) {
@@ -125,7 +135,7 @@ int read_hex(const char *hex, uint8_t *out_bytes, ptrdiff_t bytes_len) {
 	}
 
 	ptrdiff_t hex_len = 0;
-	while (char_is_hex_digit((unsigned char)hex[hex_len])) {
+	while (char_is_hex_digit((uint8_t)hex[hex_len])) {
 		if (hex_len == PTRDIFF_MAX) {
 			return -1;
 		}
@@ -144,30 +154,36 @@ int read_hex(const char *hex, uint8_t *out_bytes, ptrdiff_t bytes_len) {
 }
 
 int replace_in_file(const char *path, const char *target, const char *replacement) {
-	FILE *f = fopen(path, "r+b");
-	if (!f) {
+	FILE *file = fopen(path, "r+b");
+	if (!file) {
 		return -1;
 	}
 
-	fseek(f, 0, SEEK_END);
-	long lsize = ftell(f);
-	if (lsize < 0) {
-		fclose(f);
+	if (fseek(file, 0, SEEK_END) != 0) {
+		(void)fclose(file);
 		return -2;
 	}
+	long lsize = ftell(file);
+	if (lsize < 0) {
+		(void)fclose(file);
+		return -3;
+	}
 	size_t size = (size_t)lsize;
-	rewind(f);
+	if (fseek(file, 0, SEEK_SET) != 0) {
+		(void)fclose(file);
+		return -4;
+	}
 
 	char *data = (char *)malloc(size);
 	if (!data) {
-		fclose(f);
-		return -3;
+		(void)fclose(file);
+		return -5;
 	}
 
-	if (fread(data, 1, size, f) != size) {
+	if (fread(data, 1, size, file) != size) {
 		free(data);
-		fclose(f);
-		return -4;
+		(void)fclose(file);
+		return -6;
 	}
 
 	const char *pos = NULL;
@@ -183,15 +199,26 @@ int replace_in_file(const char *path, const char *target, const char *replacemen
 
 	if (!pos) {
 		free(data);
-		fclose(f);
-		return -5;
+		(void)fclose(file);
+		return -7;
 	}
 
-	fseek(f, pos - data, SEEK_SET);
-	fwrite(replacement, 1, strlen(replacement), f);
+	if (fseek(file, pos - data, SEEK_SET) != 0) {
+		free(data);
+		(void)fclose(file);
+		return -8;
+	}
+	if (fwrite(replacement, 1, strlen(replacement), file) != strlen(replacement)) {
+		free(data);
+		(void)fclose(file);
+		return -9;
+	}
 
 	free(data);
-	fclose(f);
+	int err = fclose(file);
+	if (err) {
+		return -10;
+	}
 	return 0;
 }
 
@@ -200,7 +227,7 @@ int copy_file(const char *src_path, const char *dst_path) {
 	FILE *source = NULL;
 	FILE *dest = NULL;
 	char buf[8192] = {0};
-	size_t nread;
+	size_t nread = 0;
 
 	source = fopen(src_path, "rb");
 	if (!source) {
@@ -224,10 +251,16 @@ int copy_file(const char *src_path, const char *dst_path) {
 
 cleanup:
 	if (dest) {
-		fclose(dest);
+		int err = fclose(dest);
+		if (err) {
+			ret = -1;
+		}
 	}
 	if (source) {
-		fclose(source);
+		int err = fclose(source);
+		if (err) {
+			ret = -1;
+		}
 	}
 
 	return ret;
@@ -235,34 +268,34 @@ cleanup:
 
 int zeroize_device(const char *dev_path, uint64_t len) {
 	int err = 0;
-	int fd = open(dev_path, O_RDWR | O_SYNC);
+	int dev_fd = open(dev_path, O_RDWR | O_SYNC);
 	{
-		if (fd < 0) {
+		if (dev_fd < 0) {
 			err = -errno;
 			trace("open %s failed: %s\n", dev_path, strerror(errno));
 			goto cleanup;
 		}
 
-		int flags = fcntl(fd, F_GETFD);
+		int flags = fcntl(dev_fd, F_GETFD);
 		if (flags >= 0) {
-			fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+			fcntl(dev_fd, F_SETFD, (uint32_t)flags | FD_CLOEXEC);
 		}
 
 		uint64_t range[2] = {0, len};
-		if (ioctl(fd, BLKZEROOUT, range) == -1) {
+		if (ioctl(dev_fd, BLKZEROOUT, range) == -1) {
 			err = -errno;
 			trace("ioctl(BLKZEROOUT) %s failed: %s\n", dev_path, strerror(errno));
 			goto cleanup;
 		}
 
-		if (fsync(fd) == -1) {
+		if (fsync(dev_fd) == -1) {
 			err = -errno;
 			goto cleanup;
 		}
 	}
 cleanup:
-	if (fd >= 0) {
-		close(fd);
+	if (dev_fd >= 0) {
+		close(dev_fd);
 	}
 	return err;
 }
@@ -270,10 +303,10 @@ cleanup:
 int snprintf_checked(char *str, ptrdiff_t size, const char *format, ...) {
 	va_list args;
 	va_start(args, format);
-	int n = vsnprintf(str, (size_t)size, format, args);
+	int actual_size = vsnprintf(str, (size_t)size, format, args);
 	va_end(args);
 
-	if (n < 0 || n >= size) {
+	if (actual_size < 0 || actual_size >= size) {
 		return -1;
 	}
 

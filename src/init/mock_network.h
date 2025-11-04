@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Quex Technologies
 #ifndef MOCK_NETWORK_H
 #define MOCK_NETWORK_H
 

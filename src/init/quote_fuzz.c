@@ -1,12 +1,17 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025 Quex Technologies
 #include "quote.h"
+#include <mbedtls/x509_crt.h>
 #include <sgx_quote_3.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t len);
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t len) {
-	if (len < sizeof(sgx_quote3_t)) {
+	if (len < sizeof(sgx_quote3_t) || len > PTRDIFF_MAX) {
 		return 0;
 	}
 
@@ -42,7 +47,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t len) {
 	}
 	memcpy(quote, data, len);
 
-	verify_quote(quote, len, &root_crt);
+	verify_quote(quote, (ptrdiff_t)len, &root_crt);
 	free(quote);
 	mbedtls_x509_crt_free(&root_crt);
 	return 0;

@@ -5,35 +5,40 @@
 #include "utils.h"
 #include <errno.h>
 #include <fcntl.h>
-#include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-#define SECTOR_SIZE 512
-#define BLOCK_SIZE 512
-#define SUPERBLOCK_SIZE 4096
-#define JOURNAL_SECTORS 1024U
-#define NO_SUPERBLOCK 1
-#define DEV_PATH_MAX_LENGTH 128
-#define MAPPER_NAME_MAX_LENGTH 64
-#define TABLE_MAX_LENGTH 512
+static const uint32_t SECTOR_SIZE = 512;
+static const int BLOCK_SIZE = 512;
+static const int JOURNAL_SECTORS = 1024;
+static const int NO_SUPERBLOCK = 1;
 
-#define INTEGRITY_SB_U8X8_MAGIC 0
-#define INTEGRITY_SB_U8_VERSION 8
-#define INTEGRITY_SB_U8_LOG2_INTERLEAVE_SECTORS 9
-#define INTEGRITY_SB_U16LE_INTEGRITY_TAG_SIZE 10
-#define INTEGRITY_SB_U32LE_JOURNAL_SECTIONS 12
-#define INTEGRITY_SB_U64LE_PROVIDED_DATA_SECTORS 16
-#define INTEGRITY_SB_U32LE_FLAGS 24
-#define INTEGRITY_SB_U8_LOG2_SECTORS_PER_BLOCK 28
-#define INTEGRITY_SB_U8_LOG2_BLOCKS_PER_BITMAP_BIT 29
-#define INTEGRITY_SB_U8X2_PAD 30
-#define INTEGRITY_SB_U64LE_RECALC_SECTOR 32
-#define INTEGRITY_SB_U8X8_PAD2 40
-#define INTEGRITY_SB_U8X16_SALT 48
+enum {
+	SUPERBLOCK_SIZE = 4096,
+	DEV_PATH_MAX_LENGTH = 128,
+	MAPPER_NAME_MAX_LENGTH = 64,
+	TABLE_MAX_LENGTH = 512
+};
+
+enum integrity_sb_offset {
+	INTEGRITY_SB_u8x8_magic = 0,
+	INTEGRITY_SB_u8_version = 8,
+	INTEGRITY_SB_u8_log2_interleave_sectors = 9,
+	INTEGRITY_SB_u16le_integrity_tag_size = 10,
+	INTEGRITY_SB_u32le_journal_sections = 12,
+	INTEGRITY_SB_u64le_provided_data_sectors = 16,
+	INTEGRITY_SB_u32le_flags = 24,
+	INTEGRITY_SB_u8_log2_sectors_per_block = 28,
+	INTEGRITY_SB_u8_log2_blocks_per_bitmap_bit = 29,
+	INTEGRITY_SB_u8x2_pad = 30,
+	INTEGRITY_SB_u64le_recalc_sector = 32,
+	INTEGRITY_SB_u8x8_pad2 = 40,
+	INTEGRITY_SB_u8x16_salt = 48,
+};
 
 struct superblock {
 	uint8_t magic[8];
@@ -51,20 +56,20 @@ struct superblock {
 	uint8_t salt[16];
 };
 
-static void parse_superblock(const uint8_t buf[SUPERBLOCK_SIZE], struct superblock *sb) {
-	memcpy(sb->magic, buf + INTEGRITY_SB_U8X8_MAGIC, sizeof sb->magic);
-	sb->version = buf[INTEGRITY_SB_U8_VERSION];
-	sb->log2_interleave_sectors = buf[INTEGRITY_SB_U8_LOG2_INTERLEAVE_SECTORS];
-	sb->integrity_tag_size = read_u16le(buf + INTEGRITY_SB_U16LE_INTEGRITY_TAG_SIZE);
-	sb->journal_sections = read_u32le(buf + INTEGRITY_SB_U32LE_JOURNAL_SECTIONS);
-	sb->provided_data_sectors = read_u64le(buf + INTEGRITY_SB_U64LE_PROVIDED_DATA_SECTORS);
-	sb->flags = read_u32le(buf + INTEGRITY_SB_U32LE_FLAGS);
-	sb->log2_sectors_per_block = buf[INTEGRITY_SB_U8_LOG2_SECTORS_PER_BLOCK];
-	sb->log2_blocks_per_bitmap_bit = buf[INTEGRITY_SB_U8_LOG2_BLOCKS_PER_BITMAP_BIT];
-	memcpy(sb->pad, buf + INTEGRITY_SB_U8X2_PAD, sizeof sb->pad);
-	sb->recalc_sector = read_u64le(buf + INTEGRITY_SB_U64LE_RECALC_SECTOR);
-	memcpy(sb->pad2, buf + INTEGRITY_SB_U8X8_PAD2, sizeof sb->pad2);
-	memcpy(sb->salt, buf + INTEGRITY_SB_U8X16_SALT, sizeof sb->salt);
+static void parse_superblock(const uint8_t buf[SUPERBLOCK_SIZE], struct superblock *out_sb) {
+	memcpy(out_sb->magic, buf + INTEGRITY_SB_u8x8_magic, sizeof out_sb->magic);
+	out_sb->version = buf[INTEGRITY_SB_u8_version];
+	out_sb->log2_interleave_sectors = buf[INTEGRITY_SB_u8_log2_interleave_sectors];
+	out_sb->integrity_tag_size = read_u16le(buf + INTEGRITY_SB_u16le_integrity_tag_size);
+	out_sb->journal_sections = read_u32le(buf + INTEGRITY_SB_u32le_journal_sections);
+	out_sb->provided_data_sectors = read_u64le(buf + INTEGRITY_SB_u64le_provided_data_sectors);
+	out_sb->flags = read_u32le(buf + INTEGRITY_SB_u32le_flags);
+	out_sb->log2_sectors_per_block = buf[INTEGRITY_SB_u8_log2_sectors_per_block];
+	out_sb->log2_blocks_per_bitmap_bit = buf[INTEGRITY_SB_u8_log2_blocks_per_bitmap_bit];
+	memcpy(out_sb->pad, buf + INTEGRITY_SB_u8x2_pad, sizeof out_sb->pad);
+	out_sb->recalc_sector = read_u64le(buf + INTEGRITY_SB_u64le_recalc_sector);
+	memcpy(out_sb->pad2, buf + INTEGRITY_SB_u8x8_pad2, sizeof out_sb->pad2);
+	memcpy(out_sb->salt, buf + INTEGRITY_SB_u8x16_salt, sizeof out_sb->salt);
 }
 
 static const struct superblock integrity_only_expected_sb = {.magic = "integrt",
@@ -97,36 +102,36 @@ static const struct superblock integrity_crypt_expected_sb = {.magic = "integrt"
 
 static int get_superblock(const char *dev_path, struct superblock *output) {
 	uint8_t raw_sb[SUPERBLOCK_SIZE] = {0};
-	int fd = open(dev_path, O_RDONLY);
-	if (fd < 0) {
+	int dev_fd = open(dev_path, O_RDONLY);
+	if (dev_fd < 0) {
 		int err = errno;
 		trace("open %s failed: %s\n", dev_path, strerror(err));
 		return -err;
 	}
 
-	int flags = fcntl(fd, F_GETFD);
+	int flags = fcntl(dev_fd, F_GETFD);
 	if (flags >= 0) {
-		fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+		fcntl(dev_fd, F_SETFD, (uint32_t)flags | FD_CLOEXEC);
 	}
 
-	if (lseek(fd, 0, SEEK_SET) < 0) {
+	if (lseek(dev_fd, 0, SEEK_SET) < 0) {
 		int err = errno;
 		trace("lseek on %s failed: %s\n", dev_path, strerror(err));
-		close(fd);
+		close(dev_fd);
 		return -err;
 	}
 
-	ssize_t n = read(fd, raw_sb, SUPERBLOCK_SIZE);
-	close(fd);
+	ssize_t nread = read(dev_fd, raw_sb, SUPERBLOCK_SIZE);
+	close(dev_fd);
 
-	if (n < 0) {
+	if (nread < 0) {
 		int err = errno;
 		trace("Cannot read superblock from %s: %s\n", dev_path, strerror(err));
 		return -err;
 	}
 
-	if (n != SUPERBLOCK_SIZE) {
-		trace("Cannot read superblock from %s: read %ld, want %d\n", dev_path, n,
+	if (nread != SUPERBLOCK_SIZE) {
+		trace("Cannot read superblock from %s: read %ld, want %d\n", dev_path, nread,
 		      SUPERBLOCK_SIZE);
 		return -1;
 	}
@@ -147,43 +152,44 @@ static int get_superblock(const char *dev_path, struct superblock *output) {
 	return 0;
 }
 
-static int validate_superblock(const struct superblock *sb, const struct superblock *expected_sb) {
-	if (memcmp(sb->magic, expected_sb->magic, sizeof expected_sb->magic) != 0) {
+static int validate_superblock(const struct superblock *actual_sb,
+                               const struct superblock *expected_sb) {
+	if (memcmp(actual_sb->magic, expected_sb->magic, sizeof expected_sb->magic) != 0) {
 		trace("Invalid magic\n");
 		return -1;
 	}
 
-	if (sb->version != expected_sb->version) {
-		trace("Invalid version: %d\n", sb->version);
+	if (actual_sb->version != expected_sb->version) {
+		trace("Invalid version: %d\n", actual_sb->version);
 		return -1;
 	}
 
-	if (sb->log2_interleave_sectors != expected_sb->log2_interleave_sectors) {
-		trace("Invalid log2_interleave_sectors: %d\n", sb->log2_interleave_sectors);
+	if (actual_sb->log2_interleave_sectors != expected_sb->log2_interleave_sectors) {
+		trace("Invalid log2_interleave_sectors: %d\n", actual_sb->log2_interleave_sectors);
 		return -1;
 	}
 
-	if (sb->integrity_tag_size != expected_sb->integrity_tag_size) {
-		trace("Invalid tag size: %d\n", sb->integrity_tag_size);
+	if (actual_sb->integrity_tag_size != expected_sb->integrity_tag_size) {
+		trace("Invalid tag size: %d\n", actual_sb->integrity_tag_size);
 		return -1;
 	}
 
-	if (sb->flags != expected_sb->flags) {
-		trace("Invalid flags: %u\n", sb->flags);
+	if (actual_sb->flags != expected_sb->flags) {
+		trace("Invalid flags: %u\n", actual_sb->flags);
 		return -1;
 	}
 
-	if (sb->log2_sectors_per_block != expected_sb->log2_sectors_per_block) {
-		trace("Invalid log2_sectors_per_block: %d\n", sb->log2_sectors_per_block);
+	if (actual_sb->log2_sectors_per_block != expected_sb->log2_sectors_per_block) {
+		trace("Invalid log2_sectors_per_block: %d\n", actual_sb->log2_sectors_per_block);
 		return -1;
 	}
 
-	if (memcmp(sb->pad, expected_sb->pad, sizeof expected_sb->pad) != 0) {
+	if (memcmp(actual_sb->pad, expected_sb->pad, sizeof expected_sb->pad) != 0) {
 		trace("Non-zero pad\n");
 		return -1;
 	}
 
-	if (memcmp(sb->pad2, expected_sb->pad2, sizeof expected_sb->pad2) != 0) {
+	if (memcmp(actual_sb->pad2, expected_sb->pad2, sizeof expected_sb->pad2) != 0) {
 		trace("Non-zero pad2\n");
 		return -1;
 	}
@@ -193,27 +199,43 @@ static int validate_superblock(const struct superblock *sb, const struct superbl
 
 static int get_provided_sectors(const char *name, uint64_t *result) {
 	int err = 0;
-
 	struct dm_target target = {0};
-	err = get_device_status(name, &target);
-	if (err) {
-		trace("get_device_status failed: %d\n", err);
-		goto cleanup;
-	}
+	{
+		err = get_device_status(name, &target);
+		if (err) {
+			trace("get_device_status failed: %d\n", err);
+			goto cleanup;
+		}
 
-	if (!target.ttype || !target.params || strcmp(target.ttype, "integrity")) {
-		trace("invalid device status: ttype=%s params=%s\n", target.ttype, target.params);
-		err = -1;
-		goto cleanup;
-	}
+		if (!target.ttype || !target.params || strcmp(target.ttype, "integrity") != 0) {
+			trace("invalid device status: ttype=%s params=%s\n", target.ttype,
+			      target.params);
+			err = -1;
+			goto cleanup;
+		}
 
-	uint64_t mismatch, prov;
-	if (sscanf(target.params, "%" PRIu64 " %" PRIu64, &mismatch, &prov) != 2) {
-		err = -1;
-		goto cleanup;
-	}
+		char *start = target.params;
+		char *end = NULL;
 
-	*result = prov;
+		errno = 0;
+		(void)strtoull(start, &end, 10);
+		if (start == end || errno == ERANGE) {
+			err = -1;
+			trace("Failed to parse mismatch from \"%s\"\n", target.params);
+			goto cleanup;
+		}
+
+		start = end;
+		errno = 0;
+		long long provided = strtoll(start, &end, 10);
+		if (start == end || errno == ERANGE || provided < 0) {
+			err = -1;
+			trace("Failed to parse provided from \"%s\"\n", target.params);
+			goto cleanup;
+		}
+
+		*result = (uint64_t)provided;
+	}
 cleanup:
 	free(target.ttype);
 	free(target.params);
@@ -221,21 +243,21 @@ cleanup:
 }
 
 static int test_read(const char *dev_path) {
-	int fd = open(dev_path, O_RDONLY);
-	if (fd < 0) {
+	int dev_fd = open(dev_path, O_RDONLY);
+	if (dev_fd < 0) {
 		trace("Cannot open %s: %s\n", dev_path, strerror(errno));
 		return -1;
 	}
 
-	int flags = fcntl(fd, F_GETFD);
+	int flags = fcntl(dev_fd, F_GETFD);
 	if (flags >= 0) {
-		fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+		fcntl(dev_fd, F_SETFD, (uint32_t)flags | FD_CLOEXEC);
 	}
 
 	char buffer[4096] = {0};
-	ssize_t bytes_read = read(fd, buffer, sizeof buffer);
+	ssize_t bytes_read = read(dev_fd, buffer, sizeof buffer);
 	int read_errno = errno;
-	close(fd);
+	close(dev_fd);
 
 	if (bytes_read == sizeof buffer) {
 		return 0;
@@ -635,7 +657,7 @@ static int restore_crypt(const char *mapper_name, const char *dev_path, const ui
 }
 
 int parse_integrity_spec(char *input, struct integrity_spec *out_spec) {
-	char *saveptr;
+	char *saveptr = NULL;
 	char *dev = strtok_r(input, ":", &saveptr);
 	char *name = strtok_r(NULL, ":", &saveptr);
 
@@ -652,8 +674,8 @@ int parse_integrity_spec(char *input, struct integrity_spec *out_spec) {
 
 int setup_integrity(const struct integrity_spec *spec, const uint8_t mac_key[32],
                     const uint8_t journal_crypt_key[32]) {
-	struct superblock sb = {0};
-	int err = get_superblock(spec->dev, &sb);
+	struct superblock superblock = {0};
+	int err = get_superblock(spec->dev, &superblock);
 	if (err && err != NO_SUPERBLOCK) {
 		trace("Cannot get superblock: %d\n", err);
 		return err;
@@ -664,7 +686,7 @@ int setup_integrity(const struct integrity_spec *spec, const uint8_t mac_key[32]
 		return init_integrity(spec->name, spec->dev, mac_key, journal_crypt_key);
 	}
 
-	err = validate_superblock(&sb, &integrity_only_expected_sb);
+	err = validate_superblock(&superblock, &integrity_only_expected_sb);
 	if (err) {
 		trace("Invalid superblock: %d\n", err);
 		return err;
@@ -674,7 +696,7 @@ int setup_integrity(const struct integrity_spec *spec, const uint8_t mac_key[32]
 }
 
 int parse_crypt_spec(char *input, struct crypt_spec *out_spec) {
-	char *saveptr;
+	char *saveptr = NULL;
 	char *dev = strtok_r(input, ":", &saveptr);
 	char *name = strtok_r(NULL, ":", &saveptr);
 
@@ -691,8 +713,8 @@ int parse_crypt_spec(char *input, struct crypt_spec *out_spec) {
 
 int setup_crypt(const struct crypt_spec *spec, const uint8_t key[32],
                 const uint8_t journal_crypt_key[32], const uint8_t journal_mac_key[32]) {
-	struct superblock sb = {0};
-	int err = get_superblock(spec->dev, &sb);
+	struct superblock superblock = {0};
+	int err = get_superblock(spec->dev, &superblock);
 	if (err && err != NO_SUPERBLOCK) {
 		trace("Cannot get superblock: %d\n", err);
 		return err;
@@ -703,7 +725,7 @@ int setup_crypt(const struct crypt_spec *spec, const uint8_t key[32],
 		return init_crypt(spec->name, spec->dev, key, journal_crypt_key, journal_mac_key);
 	}
 
-	err = validate_superblock(&sb, &integrity_crypt_expected_sb);
+	err = validate_superblock(&superblock, &integrity_crypt_expected_sb);
 	if (err) {
 		trace("Invalid superblock: %d\n", err);
 		return err;

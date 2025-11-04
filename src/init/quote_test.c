@@ -5,6 +5,7 @@
 #include "utils.h"
 #include <mbedtls/x509_crt.h>
 #include <sgx_quote_3.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -100,45 +101,54 @@ static void test_is_quote_header_well_formed_wrong_signature_data_len(void) {
 }
 
 static sgx_quote3_t *read_quote(const char *filename, ptrdiff_t *size_out) {
-	FILE *f = fopen(filename, "rb");
-	if (!f) {
+	FILE *file = fopen(filename, "rb");
+	if (!file) {
 		perror("fopen");
 		return NULL;
 	}
 
-	if (fseek(f, 0, SEEK_END) != 0) {
+	if (fseek(file, 0, SEEK_END) != 0) {
 		perror("fseek");
-		fclose(f);
+		(void)fclose(file);
 		return NULL;
 	}
 
-	long pos = ftell(f);
+	long pos = ftell(file);
 	if (pos < 0) {
 		perror("ftell");
-		fclose(f);
+		(void)fclose(file);
 		return NULL;
 	}
 
-	rewind(f);
+	if (fseek(file, 0, SEEK_SET) != 0) {
+		perror("fseek");
+		(void)fclose(file);
+		return NULL;
+	}
 
 	size_t size = (size_t)pos;
 
 	sgx_quote3_t *buffer = (sgx_quote3_t *)malloc(size);
 	if (!buffer) {
 		perror("malloc");
-		fclose(f);
+		(void)fclose(file);
 		return NULL;
 	}
 
-	size_t read = fread(buffer, 1, size, f);
+	size_t read = fread(buffer, 1, size, file);
 	if (read != size) {
 		perror("fread");
 		free(buffer);
-		fclose(f);
+		(void)fclose(file);
 		return NULL;
 	}
 
-	fclose(f);
+	int err = fclose(file);
+	if (err) {
+		perror("fclose");
+		free(buffer);
+		return NULL;
+	}
 
 	if (size_out) {
 		*size_out = pos;
@@ -148,7 +158,7 @@ static sgx_quote3_t *read_quote(const char *filename, ptrdiff_t *size_out) {
 }
 
 static void test_verify_quote_valid(void) {
-	ptrdiff_t quote_len;
+	ptrdiff_t quote_len = 0;
 	sgx_quote3_t *quote = read_quote("./test_data/quote.dat", &quote_len);
 	must(quote, "Could not read quote");
 

@@ -8,7 +8,7 @@
 #include "mount.h"
 #include <stddef.h>
 
-#define MAX_DISKS 8
+enum { MAX_DISKS = 8 };
 
 struct init_args {
 	const char *key_request_mask;

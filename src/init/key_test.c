@@ -7,6 +7,8 @@
 #include "test_utils.h"
 #include "types.h"
 #include "utils.h"
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <tdx_attest.h>
@@ -50,28 +52,28 @@ static void test_get_keys(void) {
 		memcpy(&report, report_blob, (size_t)report_len);
 		set_report(&report);
 
-		uint8_t sk[32] = {0};
-		uint8_t pk[64] = {0};
+		uint8_t secret_key[32] = {0};
+		uint8_t pub_key[64] = {0};
 
 		int err = get_keys("04030000c70000",
 		                   "231c8240fb43d8ee81a813a3a3fb05e3"
 		                   "b9f1ae9064fe4d8629cf691a58d74112",
-		                   "./test_data/root.pem", no_entropy, sk, pk);
+		                   "./test_data/root.pem", no_entropy, secret_key, pub_key);
 		must(err == 0, "get_keys must succeed");
 
-		char sk_hex[2 * sizeof sk + 1] = {0};
-		write_hex(sk, sizeof sk, sk_hex, sizeof sk_hex);
-		must(strcmp(sk_hex, "1ce6ca8f269a7b09defe608e1cd92959"
-		                    "f752be0c9dd1cd5424e783d8c4f7d1ab") == 0,
-		     "sk must be expected");
+		char secret_key_hex[2 * sizeof secret_key + 1] = {0};
+		write_hex(secret_key, sizeof secret_key, secret_key_hex, sizeof secret_key_hex);
+		must(strcmp(secret_key_hex, "1ce6ca8f269a7b09defe608e1cd92959"
+		                            "f752be0c9dd1cd5424e783d8c4f7d1ab") == 0,
+		     "secret_key must be expected");
 
-		char pk_hex[2 * sizeof pk + 1] = {0};
-		write_hex(pk, sizeof pk, pk_hex, sizeof pk_hex);
-		must(strcmp(pk_hex, "9f4681953cb9b53e1a6c90f3e64b5f38"
-		                    "41aff3376051168a70bc9500fcf495ec"
-		                    "079df19bde642a7a5692ca20a80eaad0"
-		                    "f023966ea372e7f15ae6020f532d3ee7") == 0,
-		     "pk must be expected");
+		char pub_key_hex[2 * sizeof pub_key + 1] = {0};
+		write_hex(pub_key, sizeof pub_key, pub_key_hex, sizeof pub_key_hex);
+		must(strcmp(pub_key_hex, "9f4681953cb9b53e1a6c90f3e64b5f38"
+		                         "41aff3376051168a70bc9500fcf495ec"
+		                         "079df19bde642a7a5692ca20a80eaad0"
+		                         "f023966ea372e7f15ae6020f532d3ee7") == 0,
+		     "pub_key must be expected");
 
 		struct td_key_request key_request = {0};
 		must(mock_network_recv(&mock_network_outgoing, &key_request, sizeof key_request) ==

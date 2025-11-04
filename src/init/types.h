@@ -3,10 +3,10 @@
 #ifndef TYPES_H
 #define TYPES_H
 
-#include <sgx_quote_3.h>
 #include <sgx_report2.h>
+#include <stdint.h>
 
-#define QUEX_CT_LEN 128
+enum { QUEX_CT_LEN = 128 };
 
 #pragma pack(push, 1)
 
