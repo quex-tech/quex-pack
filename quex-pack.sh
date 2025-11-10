@@ -1,7 +1,7 @@
-#!/bin/bash
+#!/bin/sh
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025 Quex Technologies
-set -eo pipefail
+set -e
 
 default_builder_image="quex213/pack:0.0.9"
 default_kernel_cmdline_release="console=ttynull"
@@ -95,76 +95,65 @@ while true; do
     exit 0
     ;;
   --workload-destination)
-    case "$2" in
+    case $2 in
       initramfs|disk)
         workload_destination=$2
         ;;
       *)
-        echo "Invalid value for --workload-destination: $2"
-        echo "Valid options are: initramfs, disk"
+        echo "Invalid value for --workload-destination: $2" >&2
+        echo "Valid options are: initramfs, disk" >&2
         exit 1
         ;;
     esac
     shift 2
-    continue
     ;;
   -o | --output)
     output_path=$2
     shift 2
-    continue
     ;;
   --output-disk)
     output_disk_path=$2
     shift 2
-    continue
     ;;
   --output-rootfs)
     output_rootfs_path=$2
     shift 2
-    continue
     ;;
   --output-kernel)
     output_kernel_path=$2
     shift 2
-    continue
     ;;
   --kernel-cmdline)
     kernel_cmdline=$2
     shift 2
-    continue
     ;;
   --init-args)
     extra_init_args=$2
     shift 2
-    continue
     ;;
   --key-request-mask)
     key_request_mask=$2
     shift 2
-    continue
     ;;
   --vault-mrenclave)
     vault_mrenclave=$2
     shift 2
-    continue
     ;;
   --builder-image)
     builder_image=$2
     shift 2
-    continue
     ;;
   --debug)
     kernel_path="/var/linux/debug.bzImage"
-    default_kernel_cmdline=$default_kernel_cmdline_release_debug
+    default_kernel_cmdline=$default_kernel_cmdline_debug
     shift
-    continue
     ;;
   --)
     shift
     break
     ;;
   -*)
-    echo "unknown option: $1"
+    echo "unknown option: $1" >&2
     usage
     exit 1
     ;;
@@ -182,65 +171,75 @@ fi
 set -u
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo "Error: docker is not installed or not in PATH."
+  echo "Error: docker is not installed or not in PATH." >&2
   exit 1
 fi
 
 source_image=$1
 
-tmp_in="$(mktemp -d ".in.XXXXXX")"
-tmp_out="$(mktemp -d ".out.XXXXXX")"
-trap 'rm -rf "$tmp_in"; rm -rf "$tmp_out"' EXIT
+tmp_in=$(mktemp -d ".in.XXXXXX") || exit 1
+tmp_out=$(mktemp -d ".out.XXXXXX") || exit 1
+trap 'rm -rf "$tmp_in" "$tmp_out"' 0 INT TERM
 
 in_dir=$tmp_in
 
 case $source_image in
 dir:*)
-  in_dir="${source_image#dir:}"
+  in_dir=${source_image#dir:}
   source_image=dir:/mnt/in
   ;;
-docker:*) ;;
+docker:*)
+  ;;
 docker-archive:*)
-  source_image_details="${source_image#docker-archive:}"
-  if [[ "$source_image_details" == *":"* ]]; then
-    source_image_archive_path="${source_image_details%%:*}"
-  else
-    source_image_archive_path="$source_image_details"
-  fi
+  source_image_details=${source_image#docker-archive:}
+  case $source_image_details in
+    *:*)
+      source_image_archive_path=${source_image_details%%:*}
+      ;;
+    *)
+      source_image_archive_path=$source_image_details
+      ;;
+  esac
   cp "$source_image_archive_path" "$in_dir/image.tar"
   source_image=docker-archive:/mnt/in/image.tar
   ;;
 docker-daemon:*)
-  docker save "${source_image#docker-daemon:}" -o "${tmp_in}/image.tar"
+  docker save "${source_image#docker-daemon:}" -o "$tmp_in/image.tar"
   source_image=docker-archive:/mnt/in/image.tar
   ;;
 oci:*)
-  source_image_details="${source_image#oci:}"
-  if [[ "$source_image_details" == *":"* ]]; then
-    in_dir="${source_image_details%%:*}"
-    source_image="oci:/mnt/in:${source_image_details#*:}"
-  else
-    in_dir=$source_image_details
-    source_image="oci:/mnt/in"
-  fi
+  source_image_details=${source_image#oci:}
+  case $source_image_details in
+    *:*)
+      in_dir=${source_image_details%%:*}
+      source_image="oci:/mnt/in:${source_image_details#*:}"
+      ;;
+    *)
+      in_dir=$source_image_details
+      source_image="oci:/mnt/in"
+      ;;
+  esac
   ;;
 oci-archive:*)
-  source_image_details="${source_image#oci-archive:}"
-  if [[ "$source_image_details" == *":"* ]]; then
-    source_image_archive_path="${source_image_details%%:*}"
-  else
-    source_image_archive_path="$source_image_details"
-  fi
+  source_image_details=${source_image#oci-archive:}
+  case $source_image_details in
+    *:*)
+      source_image_archive_path=${source_image_details%%:*}
+      ;;
+    *)
+      source_image_archive_path=$source_image_details
+      ;;
+  esac
   cp "$source_image_archive_path" "$in_dir/image.tar"
   source_image=docker-archive:/mnt/in/image.tar
   ;;
 *:*)
-  echo "Unsupported transport '${source_image%%:*}'"
+  echo "Unsupported transport '${source_image%%:*}'" >&2
   exit 1
   ;;
 *)
-  echo "Invalid source image '$source_image'"
-  echo "Expected 'transport:details'"
+  echo "Invalid source image '$source_image'" >&2
+  echo "Expected 'transport:details'" >&2
   exit 1
   ;;
 esac
@@ -248,22 +247,25 @@ esac
 docker run --rm \
   -v "$(realpath "$in_dir")":/mnt/in \
   -v "$(realpath "$tmp_out")":/mnt/out \
-  -e QUEX_KERNEL_CMDLINE="${kernel_cmdline:-$default_kernel_cmdline}" \
-  -e QUEX_KERNEL_PATH="$kernel_path" \
-  -e QUEX_EXTRA_INIT_ARGS="$extra_init_args" \
-  -e QUEX_KEY_REQUEST_MASK="$key_request_mask" \
-  -e QUEX_VAULT_MRENCLAVE="$vault_mrenclave" \
-  -e QUEX_WORKLOAD_DESTINATION="$workload_destination" \
+  -e "QUEX_KERNEL_CMDLINE=${kernel_cmdline:-$default_kernel_cmdline}" \
+  -e "QUEX_KERNEL_PATH=$kernel_path" \
+  -e "QUEX_EXTRA_INIT_ARGS=$extra_init_args" \
+  -e "QUEX_KEY_REQUEST_MASK=$key_request_mask" \
+  -e "QUEX_VAULT_MRENCLAVE=$vault_mrenclave" \
+  -e "QUEX_WORKLOAD_DESTINATION=$workload_destination" \
   "$builder_image" \
   "$source_image"
 
-mv "${tmp_out}/ukernel.efi" "$output_path"
-if [ "$workload_destination" == "disk" ]; then
-  mv "${tmp_out}/disk.img" "$output_disk_path"
+mv "$tmp_out/ukernel.efi" "$output_path"
+
+if [ "$workload_destination" = "disk" ]; then
+  mv "$tmp_out/disk.img" "$output_disk_path"
 fi
-if [ "$output_rootfs_path" ]; then
-  mv "${tmp_out}/rootfs.cpio.gz" "$output_rootfs_path"
+
+if [ -n "$output_rootfs_path" ]; then
+  mv "$tmp_out/rootfs.cpio.gz" "$output_rootfs_path"
 fi
-if [ "$output_kernel_path" ]; then
-  mv "${tmp_out}/bzImage" "$output_kernel_path"
+
+if [ -n "$output_kernel_path" ]; then
+  mv "$tmp_out/bzImage" "$output_kernel_path"
 fi

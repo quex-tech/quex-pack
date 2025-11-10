@@ -1,8 +1,11 @@
-#!/bin/bash
+#!/bin/sh
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025 Quex Technologies
-set -euo pipefail
+set -eu
 
-root_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+root_dir=$(
+    CDPATH= cd "$(dirname "$0")" || exit 1
+    pwd
+)
 
 sudo cp "$root_dir/quex-pack.sh" /usr/local/bin/quex-pack
