@@ -50,7 +50,7 @@ bool is_quote_header_well_formed(const sgx_quote3_t *quote) {
 	                                sizeof(sgx_ql_certification_data_t);
 	if (min_signature_data_len > quote->signature_data_len ||
 	    quote->signature_data_len > MAX_QUOTE_SIGNATURE_DATA_LENGTH) {
-		trace("Quote signature data length %" PRIu32 " is outside of [%zu, %d] range\n",
+		trace("Quote signature data length %" PRIu32 " is outside of [%zu, %zu] range\n",
 		      quote->signature_data_len, min_signature_data_len,
 		      MAX_QUOTE_SIGNATURE_DATA_LENGTH);
 		is_well_formed = false;
