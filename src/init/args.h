@@ -14,6 +14,7 @@ struct init_args {
 	const char *key_request_mask;
 	const char *vault_mrenclave;
 	const char *workload_path;
+	const char *quote_path;
 	struct mount_spec mount_specs[MAX_DISKS];
 	ptrdiff_t mount_specs_len;
 	struct mkfs_spec mkfs_specs[MAX_DISKS];

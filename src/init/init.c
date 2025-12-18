@@ -31,7 +31,6 @@
 #define BUNDLE_CONFIG_PATH "/etc/bundle_config.json"
 
 static const char ROOT_PEM_PATH[] = "/etc/root.pem";
-static const char QUOTE_PATH[] = "/var/data/quote.txt";
 
 static const uint8_t hkdf_salt[32] = {
     0x7f, 0x56, 0x26, 0xb9, 0xf2, 0x95, 0x8c, 0x47, 0xbe, 0x9d, 0x3d, 0x7b, 0xb1, 0x6d, 0xb6, 0xf2,
@@ -386,10 +385,12 @@ static int init(int argc, char *argv[]) {
 		goto cleanup;
 	}
 
-	err = save_quote(pub_key, QUOTE_PATH);
-	if (err) {
-		trace("save_quote failed: %d\n", err);
-		goto cleanup;
+	if (parameters.quote_path) {
+		err = save_quote(pub_key, parameters.quote_path);
+		if (err) {
+			trace("save_quote failed: %d\n", err);
+			goto cleanup;
+		}
 	}
 
 	err = handle_disks(&parameters, secret_key);

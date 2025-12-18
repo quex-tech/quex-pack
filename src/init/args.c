@@ -69,6 +69,15 @@ static int parse_mount(char *value, struct init_args *parsed) {
 	return 0;
 }
 
+static int parse_save_quote(char *value, struct init_args *parsed) {
+	if (strlen(value) > 192) {
+		trace("Quote path is too long\n");
+		return -1;
+	}
+	parsed->quote_path = value;
+	return 0;
+}
+
 static int parse_arg(const char *arg, struct init_args *parsed) {
 	char *eq_sign = strchr(arg, '=');
 	if (!eq_sign) {
@@ -105,6 +114,10 @@ static int parse_arg(const char *arg, struct init_args *parsed) {
 
 	if (strncmp(arg, "mount=", strlen("mount=")) == 0) {
 		return parse_mount(value, parsed);
+	}
+
+	if (strncmp(arg, "save_quote=", strlen("save_quote=")) == 0) {
+		return parse_save_quote(value, parsed);
 	}
 
 	return 0;
