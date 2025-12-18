@@ -3,7 +3,7 @@
 # Copyright 2025 Quex Technologies
 set -e
 
-default_builder_image="quex213/pack:0.0.9"
+default_builder_image="quex213/pack:0.0.10"
 default_kernel_cmdline_release="console=ttynull"
 default_kernel_cmdline_debug="console=ttyS0"
 default_workload_destination="initramfs"
