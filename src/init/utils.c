@@ -57,9 +57,9 @@ int init_socket(uint16_t port) {
 	return sock;
 }
 
-void write_hex(const uint8_t *bytes, ptrdiff_t bytes_len, char *out_hex, ptrdiff_t hex_len) {
+int write_hex(const uint8_t *bytes, ptrdiff_t bytes_len, char *out_hex, ptrdiff_t hex_len) {
 	if (bytes_len < 0 || bytes_len > (PTRDIFF_MAX - 1) / 2 || hex_len != bytes_len * 2 + 1) {
-		return;
+		return -1;
 	}
 
 	static const char hexdigits[] = "0123456789abcdef";
@@ -70,6 +70,7 @@ void write_hex(const uint8_t *bytes, ptrdiff_t bytes_len, char *out_hex, ptrdiff
 	}
 
 	out_hex[hex_len - 1] = '\0';
+	return 0;
 }
 
 int write_hex_to_file(const char *path, const uint8_t *bytes, ptrdiff_t bytes_len) {
@@ -89,7 +90,12 @@ int write_hex_to_file(const char *path, const uint8_t *bytes, ptrdiff_t bytes_le
 		return -2;
 	}
 
-	write_hex(bytes, bytes_len, hex_str, hex_len);
+	int err = write_hex(bytes, bytes_len, hex_str, hex_len);
+	if (err) {
+		free(hex_str);
+		(void)fclose(file);
+		return err;
+	}
 
 	if (fprintf(file, "%s", hex_str) < 0) {
 		free(hex_str);
@@ -98,7 +104,7 @@ int write_hex_to_file(const char *path, const uint8_t *bytes, ptrdiff_t bytes_le
 	}
 
 	free(hex_str);
-	int err = fclose(file);
+	err = fclose(file);
 	if (err) {
 		return err;
 	}

@@ -275,20 +275,28 @@ static int format_integrity_only_params(const char *dev_path, const uint8_t mac_
                                         const uint8_t journal_crypt_key[32],
                                         char output[TABLE_MAX_LENGTH]) {
 	char mac_key_hex[65] = {0};
-	write_hex(mac_key, 32, mac_key_hex, sizeof mac_key_hex);
+	int err = write_hex(mac_key, 32, mac_key_hex, sizeof mac_key_hex);
+	if (err) {
+		trace("write_hex failed: %d\n", err);
+		return err;
+	}
 
 	char journal_crypt_key_hex[65] = {0};
-	write_hex(journal_crypt_key, 32, journal_crypt_key_hex, sizeof journal_crypt_key_hex);
+	err = write_hex(journal_crypt_key, 32, journal_crypt_key_hex, sizeof journal_crypt_key_hex);
+	if (err) {
+		trace("write_hex failed: %d\n", err);
+		return err;
+	}
 
-	int err = snprintf_checked(output, TABLE_MAX_LENGTH,
-	                           "%s 0 - J 6 "
-	                           "journal_sectors:%u "
-	                           "internal_hash:hmac(sha256):%s "
-	                           "journal_crypt:ctr(aes):%s "
-	                           "block_size:%d "
-	                           "fix_hmac fix_padding",
-	                           dev_path, JOURNAL_SECTORS, mac_key_hex, journal_crypt_key_hex,
-	                           BLOCK_SIZE);
+	err = snprintf_checked(output, TABLE_MAX_LENGTH,
+	                       "%s 0 - J 6 "
+	                       "journal_sectors:%u "
+	                       "internal_hash:hmac(sha256):%s "
+	                       "journal_crypt:ctr(aes):%s "
+	                       "block_size:%d "
+	                       "fix_hmac fix_padding",
+	                       dev_path, JOURNAL_SECTORS, mac_key_hex, journal_crypt_key_hex,
+	                       BLOCK_SIZE);
 
 	if (err) {
 		trace("Could not write integrity table\n");
@@ -302,20 +310,29 @@ static int format_integrity_crypt_params(const char *dev_path, const uint8_t jou
                                          const uint8_t journal_mac_key[32],
                                          char output[TABLE_MAX_LENGTH]) {
 	char journal_crypt_key_hex[65] = {0};
-	write_hex(journal_crypt_key, 32, journal_crypt_key_hex, sizeof journal_crypt_key_hex);
+	int err =
+	    write_hex(journal_crypt_key, 32, journal_crypt_key_hex, sizeof journal_crypt_key_hex);
+	if (err) {
+		trace("write_hex failed: %d\n", err);
+		return err;
+	}
 
 	char journal_mac_key_hex[65] = {0};
-	write_hex(journal_mac_key, 32, journal_mac_key_hex, sizeof journal_mac_key_hex);
+	err = write_hex(journal_mac_key, 32, journal_mac_key_hex, sizeof journal_mac_key_hex);
+	if (err) {
+		trace("write_hex failed: %d\n", err);
+		return err;
+	}
 
-	int err = snprintf_checked(output, TABLE_MAX_LENGTH,
-	                           "%s 0 28 J 6 "
-	                           "journal_sectors:%u "
-	                           "journal_crypt:ctr(aes):%s "
-	                           "journal_mac:hmac(sha256):%s "
-	                           "block_size:%d "
-	                           "fix_hmac fix_padding",
-	                           dev_path, JOURNAL_SECTORS, journal_crypt_key_hex,
-	                           journal_mac_key_hex, BLOCK_SIZE);
+	err = snprintf_checked(output, TABLE_MAX_LENGTH,
+	                       "%s 0 28 J 6 "
+	                       "journal_sectors:%u "
+	                       "journal_crypt:ctr(aes):%s "
+	                       "journal_mac:hmac(sha256):%s "
+	                       "block_size:%d "
+	                       "fix_hmac fix_padding",
+	                       dev_path, JOURNAL_SECTORS, journal_crypt_key_hex,
+	                       journal_mac_key_hex, BLOCK_SIZE);
 
 	if (err) {
 		trace("Could not write integrity table\n");
@@ -328,12 +345,16 @@ static int format_integrity_crypt_params(const char *dev_path, const uint8_t jou
 static int format_crypt_params(const char *dev_path, const uint8_t key[32],
                                char output[TABLE_MAX_LENGTH]) {
 	char key_hex[65] = {0};
-	write_hex(key, 32, key_hex, sizeof key_hex);
+	int err = write_hex(key, 32, key_hex, sizeof key_hex);
+	if (err) {
+		trace("write_hex failed: %d\n", err);
+		return err;
+	}
 
-	int err = snprintf_checked(output, TABLE_MAX_LENGTH,
-	                           "capi:gcm(aes)-random %s 0 %s 0 "
-	                           "2 integrity:28:aead sector_size:%d",
-	                           key_hex, dev_path, BLOCK_SIZE);
+	err = snprintf_checked(output, TABLE_MAX_LENGTH,
+	                       "capi:gcm(aes)-random %s 0 %s 0 "
+	                       "2 integrity:28:aead sector_size:%d",
+	                       key_hex, dev_path, BLOCK_SIZE);
 
 	if (err) {
 		trace("Could not write crypt table\n");

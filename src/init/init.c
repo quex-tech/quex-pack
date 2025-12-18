@@ -297,7 +297,14 @@ static int prepare_config(const char *workload_path, const uint8_t secret_key[32
 	}
 
 	char key_env_var[] = SECRET_KEY_TEMPLATE;
-	write_hex(secret_key, 32, key_env_var + strlen("TD_SECRET_KEY="), sizeof key_env_var);
+	ptrdiff_t prefix_len = strlen("TD_SECRET_KEY=");
+	err = write_hex(secret_key, 32, key_env_var + prefix_len,
+	                (ptrdiff_t)(sizeof key_env_var) - prefix_len);
+	if (err) {
+		trace("write_hex failed: %d\n", err);
+		mbedtls_platform_zeroize(key_env_var, sizeof SECRET_KEY_TEMPLATE);
+		return err;
+	}
 
 	err = replace_in_file(BUNDLE_CONFIG_PATH, SECRET_KEY_TEMPLATE, key_env_var);
 	if (err) {

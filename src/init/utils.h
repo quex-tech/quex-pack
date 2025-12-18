@@ -17,7 +17,7 @@
 #define sizeof_array(a) (sizeof(a) / sizeof((a)[0]))
 
 int init_socket(uint16_t port);
-void write_hex(const uint8_t *bytes, ptrdiff_t bytes_len, char *out_hex, ptrdiff_t hex_len);
+int write_hex(const uint8_t *bytes, ptrdiff_t bytes_len, char *out_hex, ptrdiff_t hex_len);
 int write_hex_to_file(const char *path, const uint8_t *bytes, ptrdiff_t bytes_len);
 int read_hex(const char *hex, uint8_t *out_bytes, ptrdiff_t bytes_len);
 int replace_in_file(const char *path, const char *target, const char *replacement);
