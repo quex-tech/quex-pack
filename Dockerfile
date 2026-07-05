@@ -10,13 +10,17 @@ ARG REPRO_SOURCES_LIST_SHA256=c125df9762b0c7233459087bb840c0e5dbfc4d9690ee227f1e
 ADD --checksum=sha256:$REPRO_SOURCES_LIST_SHA256 --chmod=755 https://raw.githubusercontent.com/reproducible-containers/repro-sources-list.sh/refs/tags/v${REPRO_SOURCES_LIST_VERSION}/repro-sources-list.sh /usr/local/bin/repro-sources-list.sh
 
 # Install Ubuntu packages
-ARG LD_LINUX_SO_SHA256=4f961aefd1ecbc91b6de5980623aa389ca56e8bfb5f2a1d2a0b94b54b0fde894
-ARG LIBC_SO_SHA256=de259f5276c4a991f78bf87225d6b40e56edbffe0dcbc0ffca36ec7fe30f3f77
+# NO_APT_SNAPSHOT=1 skips snapshot.ubuntu.com pinning (outage fallback) and
+# builds against the live archive; apt-level reproducibility is lost until the
+# hash pins below are re-recorded against a working snapshot.
+ARG NO_APT_SNAPSHOT=""
+ARG LD_LINUX_SO_SHA256=1cd555ac46b7887edeaf3c42aac5408c8135e52f6b37870da2cf82d5fe14e829
+ARG LIBC_SO_SHA256=d8db8739a1633c972cec6a4fe0566bdcec6fd088f98723492ab0361f66238f75
 RUN \
   --mount=type=cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,target=/var/lib/apt,sharing=locked \
   <<EOF
-repro-sources-list.sh
+[ -n "$NO_APT_SNAPSHOT" ] || repro-sources-list.sh
 DEBIAN_FRONTEND=noninteractive \
   apt-get install -y --no-install-recommends --update \
   autoconf \
@@ -59,7 +63,7 @@ COPY src/linux /tmp/linux-config
 ARG LINUX_VERSION=6.12.45
 ARG LINUX_TAR_XZ_SHA256=8f95a8549cfbdfb89c1181a1f55a971f04dfcd629508a2ed70b777ab92f9db3e
 ADD --checksum=sha256:$LINUX_TAR_XZ_SHA256 https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${LINUX_VERSION}.tar.xz /tmp/linux/linux.tar.xz
-ARG LINUX_BZIMAGE_SHA256=c82bcd8de6f1589930564127abad8912fe094c069ba821948710ec5c237ff2b4
+ARG LINUX_BZIMAGE_SHA256=693ed03ed9a982362579567da06070acc878687851e507e9ca193ac7c36d8057
 RUN <<EOF
 cd /tmp/linux
 tar -x -f linux.tar.xz
@@ -84,7 +88,7 @@ EOF
 ARG CRUN_VERSION=1.21
 ARG CRUN_TAR_GZ_SHA256=4bfb700e764a4804a4de3ecf07753f4c391005356d60356df65d80ae0914c486
 ADD --checksum=sha256:$CRUN_TAR_GZ_SHA256 https://github.com/containers/crun/releases/download/${CRUN_VERSION}/crun-${CRUN_VERSION}.tar.gz /tmp/crun/crun.tar.gz
-ARG CRUN_BIN_SHA256=7d9ec70dbf2c211958721d26392e20b0a857ce14f5382c0762957402912ac316
+ARG CRUN_BIN_SHA256=a0392f6ca88ca131148904ce8dac89a0c7bdee2440d757e1d08ac911b8551f1c
 RUN <<EOF
 cd /tmp/crun
 tar -x -f crun.tar.gz
@@ -113,7 +117,7 @@ EOF
 # Build e2fsprogs
 ARG E2FS_VERSION=1.47.1
 ARG E2FS_TAR_GZ_SHA256=0d2e0bf80935c3392b73a60dbff82d8a6ef7ea88b806c2eea964b6837d3fd6c2
-ARG E2FS_BIN_SHA256=d4fd4a539edf336733c0f7694cabeae4aa22f29e9b632836cbecf960c561129a
+ARG E2FS_BIN_SHA256=a66353ba72cf611c5d88ac0c30a2a859b3dcc3277b84e6251bbcfec8b243132d
 ADD --checksum=sha256:$E2FS_TAR_GZ_SHA256 https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v${E2FS_VERSION}/e2fsprogs-${E2FS_VERSION}.tar.gz /tmp/e2fs/e2fs.tar.gz
 RUN <<EOF
 cd /tmp/e2fs
@@ -153,8 +157,8 @@ EOF
 
 # Build init
 ARG INIT_CFLAGS=""
-ARG INIT_BIN_SHA256=bc4f3fc5ecc70a391d91a56c68bf5dc8df738a84b225e4fecd6c480fb11c2f2d
-ARG LIBDEVMAPPER_SO_SHA256=b94e3b648b0aece4ab0abaf6346b0ac5eb418882720d306cdbaf09d6f4788af5
+ARG INIT_BIN_SHA256=a25496672db93f30e0e2eaf35b8c1cd5c9c189e602c35801c9dffed61f9c76ed
+ARG LIBDEVMAPPER_SO_SHA256=f6c37d474e60716c9a200221f1b65635971512f589bdecb81a2a0ff60da13ba1
 ARG LIBTDX_ATTEST_SO_SHA256=d26f8ac5df799edc6bce92f7b45c46fe03cc3841ef64e542b7c2e7d44d789820
 COPY src/init /tmp/init
 RUN <<EOF
@@ -190,7 +194,7 @@ EOF
 
 # Finalize rootfs and verify its checksum
 COPY rootfs ${ROOTFS_DIR}
-ARG ROOTFS_CPIO_GZ_SHA256=2b26edae1bb72bad29773c836efe93f469c57e99e6410e7f7ab6face2b31bd92
+ARG ROOTFS_CPIO_GZ_SHA256=18369f70bc9c29830ea1d5bd4de27228a5e46a0b0a717c639db4f0f545194271
 RUN <<EOF
 cd ${ROOTFS_DIR}
 find . -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
@@ -209,12 +213,13 @@ SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 COPY --from=builder /usr/local/bin/repro-sources-list.sh /usr/local/bin/repro-sources-list.sh
 
 # Install Ubuntu packages
-ARG EFI_STUB_SHA256=e5c5ec997fa117d6151e80c3bf965d53d4723d0277192f535be70a7023088fc2
+ARG NO_APT_SNAPSHOT=""
+ARG EFI_STUB_SHA256=2dbe8bc89e011ab9216bbb1be82e86c5597aaffeaf567b6bd481925b82fd56c4
 RUN \
   --mount=type=cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,target=/var/lib/apt,sharing=locked \
   <<EOF
-repro-sources-list.sh
+[ -n "$NO_APT_SNAPSHOT" ] || repro-sources-list.sh
 DEBIAN_FRONTEND=noninteractive \
   apt-get install -y --no-install-recommends --update \
   ca-certificates \
@@ -224,7 +229,7 @@ DEBIAN_FRONTEND=noninteractive \
   jq \
   skopeo \
   squashfs-tools \
-  systemd-boot-efi=255.4-1ubuntu8.10 \
+  systemd-boot-efi \
   systemd-ukify \
   umoci
 rm -rf /var/log/* /var/cache/ldconfig/aux-cache /var/lib/apt/lists/*
