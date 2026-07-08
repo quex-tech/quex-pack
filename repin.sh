@@ -20,7 +20,8 @@ set -eu
 version=${1:?Usage: $0 VERSION [extra build args...]}
 shift
 
-epoch=$(date -d 2025-09-05 +%s)
+# -u: keep in sync with build.sh — the epoch must not depend on the timezone.
+epoch=$(date -ud 2025-09-05 +%s)
 root_dir=$(
     CDPATH= cd "$(dirname "$0")" || exit 1
     pwd

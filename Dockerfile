@@ -67,7 +67,7 @@ COPY src/linux /tmp/linux-config
 ARG LINUX_VERSION=6.12.45
 ARG LINUX_TAR_XZ_SHA256=8f95a8549cfbdfb89c1181a1f55a971f04dfcd629508a2ed70b777ab92f9db3e
 ADD --checksum=sha256:$LINUX_TAR_XZ_SHA256 https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${LINUX_VERSION}.tar.xz /tmp/linux/linux.tar.xz
-ARG LINUX_BZIMAGE_SHA256=8d09d97c6eebfa456e170a3e565c28e83a245a3b1848838af6e0c44165410b3a
+ARG LINUX_BZIMAGE_SHA256=a5d342d8893908cde122edf4b9600ff3ef452130d089693179f14a97bd151d64
 RUN <<EOF
 cd /tmp/linux
 tar -x -f linux.tar.xz
@@ -198,7 +198,7 @@ EOF
 
 # Finalize rootfs and verify its checksum
 COPY rootfs ${ROOTFS_DIR}
-ARG ROOTFS_CPIO_GZ_SHA256=2f6fdb04b97802f24c64fb5405ddbb676eb130e7cce2af93d111dcf7e6364695
+ARG ROOTFS_CPIO_GZ_SHA256=4cdafe14b10fc52f65a06b02da770c94f19bcfee9de729821e8587c0bb397657
 RUN <<EOF
 cd ${ROOTFS_DIR}
 find . -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
