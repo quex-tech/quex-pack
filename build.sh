@@ -9,7 +9,9 @@ if [ "$#" -ne 1 ]; then
 fi
 
 version=$1
-epoch=$(date -d 2025-09-05 +%s)
+# -u: the epoch must not depend on the builder's timezone or the image is
+# only reproducible from machines sharing it.
+epoch=$(date -ud 2025-09-05 +%s)
 
 docker buildx build \
     --platform=linux/amd64 \
