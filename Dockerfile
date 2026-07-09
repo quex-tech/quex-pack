@@ -55,8 +55,10 @@ rm -rf /var/log/* /var/cache/ldconfig/aux-cache /var/lib/apt/lists/*
 cd /usr/lib
 sha256sum x86_64-linux-gnu/ld-linux-x86-64.so.2 \
   x86_64-linux-gnu/libc.so.6
-sha256sum -c <<<"$LD_LINUX_SO_SHA256  x86_64-linux-gnu/ld-linux-x86-64.so.2
-$LIBC_SO_SHA256  x86_64-linux-gnu/libc.so.6" || test -n "$LENIENT_PINS"
+printf '%s  %s\n' \
+  "$LD_LINUX_SO_SHA256" x86_64-linux-gnu/ld-linux-x86-64.so.2 \
+  "$LIBC_SO_SHA256" x86_64-linux-gnu/libc.so.6 \
+  | sha256sum -c - || test -n "$LENIENT_PINS"
 EOF
 
 ARG ROOTFS_DIR=/var/rootfs
@@ -79,7 +81,7 @@ export KBUILD_BUILD_HOST=quex
 export KBUILD_BUILD_TIMESTAMP="$(LC_ALL=C TZ=\"UTC\" date -d @$SOURCE_DATE_EPOCH)"
 make -j$(nproc)
 sha256sum arch/x86/boot/bzImage
-sha256sum -c <<<"$LINUX_BZIMAGE_SHA256  arch/x86/boot/bzImage" || test -n "$LENIENT_PINS"
+printf '%s  %s\n' "$LINUX_BZIMAGE_SHA256" arch/x86/boot/bzImage | sha256sum -c - || test -n "$LENIENT_PINS"
 mkdir -p /var/linux
 cp arch/x86/boot/bzImage /var/linux/
 scripts/kconfig/merge_config.sh .config /tmp/linux-config/kernel_debug.config
@@ -113,7 +115,7 @@ mkdir -p ${ROOTFS_DIR}/usr/lib/x86_64-linux-gnu
   --disable-criu
 make -j$(nproc)
 sha256sum crun
-sha256sum -c <<<"$CRUN_BIN_SHA256  crun" || test -n "$LENIENT_PINS"
+printf '%s  %s\n' "$CRUN_BIN_SHA256" crun | sha256sum -c - || test -n "$LENIENT_PINS"
 make install
 rm -rf /tmp/crun
 EOF
@@ -154,7 +156,7 @@ cd e2fsprogs-${E2FS_VERSION}
 make libs
 make -C ./misc mke2fs.static
 sha256sum ./misc/mke2fs.static
-sha256sum -c <<<"$E2FS_BIN_SHA256  ./misc/mke2fs.static" || test -n "$LENIENT_PINS"
+printf '%s  %s\n' "$E2FS_BIN_SHA256" ./misc/mke2fs.static | sha256sum -c - || test -n "$LENIENT_PINS"
 cp ./misc/mke2fs.static ${ROOTFS_DIR}/usr/bin/mke2fs
 rm -rf /tmp/e2fs
 EOF
@@ -172,9 +174,11 @@ make clean
 make test CFLAGS="$INIT_CFLAGS"
 make CFLAGS="$INIT_CFLAGS"
 sha256sum init vendor/build/usr/lib/libdevmapper.so vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so
-sha256sum -c <<<"$INIT_BIN_SHA256  init
-$LIBDEVMAPPER_SO_SHA256  vendor/build/usr/lib/libdevmapper.so
-$LIBTDX_ATTEST_SO_SHA256  vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so" || test -n "$LENIENT_PINS"
+printf '%s  %s\n' \
+  "$INIT_BIN_SHA256" init \
+  "$LIBDEVMAPPER_SO_SHA256" vendor/build/usr/lib/libdevmapper.so \
+  "$LIBTDX_ATTEST_SO_SHA256" vendor/build/usr/lib/x86_64-linux-gnu/libtdx_attest.so \
+  | sha256sum -c - || test -n "$LENIENT_PINS"
 mkdir -p ${ROOTFS_DIR}/usr/lib ${ROOTFS_DIR}/usr/bin
 cp init ${ROOTFS_DIR}/
 cp -a vendor/build/usr/lib/libdevmapper.so* ${ROOTFS_DIR}/usr/lib/
@@ -207,7 +211,7 @@ LC_ALL=C find . \
   | cpio --reproducible -o -V -H newc \
   | gzip -9 -c -n >/var/rootfs.cpio.gz
 sha256sum /var/rootfs.cpio.gz
-sha256sum -c <<<"$ROOTFS_CPIO_GZ_SHA256  /var/rootfs.cpio.gz" || test -n "$LENIENT_PINS"
+printf '%s  %s\n' "$ROOTFS_CPIO_GZ_SHA256" /var/rootfs.cpio.gz | sha256sum -c - || test -n "$LENIENT_PINS"
 EOF
 
 # ubuntu:noble-20250805
@@ -240,7 +244,7 @@ DEBIAN_FRONTEND=noninteractive \
 rm -rf /var/log/* /var/cache/ldconfig/aux-cache /var/lib/apt/lists/*
 cd /usr/lib
 sha256sum systemd/boot/efi/linuxx64.efi.stub
-sha256sum -c <<<"$EFI_STUB_SHA256  systemd/boot/efi/linuxx64.efi.stub" || test -n "$LENIENT_PINS"
+printf '%s  %s\n' "$EFI_STUB_SHA256" systemd/boot/efi/linuxx64.efi.stub | sha256sum -c - || test -n "$LENIENT_PINS"
 EOF
 
 COPY --from=builder /var/linux /var/linux
