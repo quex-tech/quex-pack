@@ -35,6 +35,9 @@ jq '
     end
   | .mounts |= map(select(.type != "devpts"))
   | .linux.namespaces |= map(select(.type != "network"))
+  # /sys/firmware holds the ACPI CCEL (CC event log) the workload serves for
+  # attestation; the generic OCI masking would hide it. Read-only, no secrets.
+  | .linux.maskedPaths |= map(select(. != "/sys/firmware"))
   | if (any(.mounts[]?; .destination == "/sys/kernel/config") | not)
       then .mounts += [{
         "destination": "/sys/kernel/config",

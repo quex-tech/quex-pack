@@ -385,6 +385,32 @@ int get_keys(const char *key_request_mask_hex, const char *vault_mr_enclave_hex,
 			goto cleanup;
 		}
 
+		// Empty vault_mrenclave: vault key delivery disabled — generate the
+		// secret key locally instead of blocking on port 24516.
+		if (vault_mr_enclave_hex[0] == '\0') {
+			trace("No vault mr_enclave, generating local secret key\n");
+			mbedtls_mpi local_secret_key;
+			mbedtls_ecp_point local_pub_key;
+			mbedtls_mpi_init(&local_secret_key);
+			mbedtls_ecp_point_init(&local_pub_key);
+			err = mbedtls_ecp_gen_keypair(&ctx.grp, &local_secret_key,
+			                              &local_pub_key, mbedtls_ctr_drbg_random,
+			                              &ctx.drbg);
+			if (!err) {
+				err = mbedtls_mpi_write_binary(&local_secret_key,
+				                               out_secret_key, 32);
+			}
+			if (!err) {
+				err = write_raw_pub_key(&ctx.grp, &local_pub_key, out_pk);
+			}
+			mbedtls_ecp_point_free(&local_pub_key);
+			mbedtls_mpi_free(&local_secret_key);
+			if (err) {
+				trace("local key generation failed: %d\n", err);
+			}
+			goto cleanup;
+		}
+
 		struct td_key_request_mask mask = {0};
 		err = read_hex(key_request_mask_hex, (uint8_t *)&mask, sizeof mask);
 		if (err) {
