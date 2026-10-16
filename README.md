@@ -8,6 +8,10 @@ Container workload may be either added to the initramfs, or put to a SquashFS di
 
 Result is a Unified kernel image and an optional disk image.
 
+## Google Cloud
+
+This branch targets Google Compute Engine Confidential VMs (TDX on C3). See [docs/gcp.md](docs/gcp.md) for the image build, instance creation and key delivery flow.
+
 ## Installing
 
 Clone the repo and run `install.sh`. That will put `quex-pack` into `/usr/local/bin`.
