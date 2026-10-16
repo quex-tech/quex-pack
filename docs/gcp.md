@@ -13,7 +13,7 @@ Google Compute Engine (GCE) runs Intel TDX Trust Domains as Confidential VMs on 
 ## Prerequisites
 
 - quex-pack from this branch, installed with `./install.sh`.
-- Builder image `quex213/pack:0.0.11-gcp`. If it is not available from Docker Hub, build it locally with `./build.sh 0.0.11-gcp` and pass `--builder-image quex213/pack:0.0.11-gcp` (or keep the tag and the default applies).
+- Builder image `quex213/pack:0.0.11-gcp`, which is not published on Docker Hub. Build it locally from this branch with `./build.sh 0.0.11-gcp`; the resulting tag is the default of `quex-pack.sh` on this branch. The build is reproducible and the Dockerfile pins every artifact hash, so a local build equals anyone else's.
 - `docker` or `podman`, `sgdisk` (package `gdisk`), `mkfs.fat` (`dosfstools`), `mtools`.
 - `gcloud` and `gsutil`, authenticated, with the Compute Engine API enabled and a GCS bucket in the project for staging.
 
